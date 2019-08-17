@@ -9,8 +9,7 @@ import torch
 from torch import autograd, nn
 from torch.autograd import Variable
 
-import helpers
-import layers
+from . import helpers, layers
 
 
 class Flex(nn.Module):
@@ -110,7 +109,7 @@ def BatchNorm3d(*args, **kw):
 
 
 def replace_modules(model, f):
-    for key in model._modules.keys():
+    for key in list(model._modules.keys()):
         sub = model._modules[key]
         replacement = f(sub)
         if replacement is not None:
@@ -131,6 +130,6 @@ def flex_freeze(model):
 
 
 def delete_modules(model, f):
-    for key in model._modules.keys():
+    for key in list(model._modules.keys()):
         if f(model._modules[key]):
             del model._modules[key]

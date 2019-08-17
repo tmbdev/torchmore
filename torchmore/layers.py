@@ -95,8 +95,8 @@ class Info(nn.Module):
 
     def forward(self, x):
         if self.count % self.every == 0:
-            print("Info", self.info, x.size(),
-                  x.min().data[0], x.max().data[0])
+            print(("Info", self.info, x.size(),
+                  x.min().data[0], x.max().data[0]))
         return x
 
     def __repr__(self):
