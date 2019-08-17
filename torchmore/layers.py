@@ -332,12 +332,12 @@ class ImgSumSeq(nn.Module):
         return "ImgSumSeq()"
 
 
-def lstm_state(shape, like):
+def lstm_state(shape, seq):
     """Create hidden state for LSTM."""
-    h0 = torch.zeros(shape, dtype=like.dtype,
-                     device=like.device, requires_grad=False)
-    c0 = torch.zeros(shape, dtype=like.dtype,
-                     device=like.device, requires_grad=False)
+    h0 = torch.zeros(shape, dtype=seq.dtype,
+                     device=seq.device, requires_grad=False)
+    c0 = torch.zeros(shape, dtype=seq.dtype,
+                     device=seq.device, requires_grad=False)
     return h0, c0
 
 
@@ -347,31 +347,37 @@ class LSTM1(nn.Module):
     All the sequence processing layers use BDL order by default to
     be consistent with 1D convolutions.
     """
-    input_order = BDL
-    output_order = BDL
 
-    def __init__(self, ninput=None, noutput=None, ndir=2):
+
+    def __init__(self, ninput=None, noutput=None, num_layers=1, bidirectional=False, batch_first=True):
         nn.Module.__init__(self)
         assert ninput is not None
         assert noutput is not None
-        self.ndir = ndir
-        self.ninput = ninput
-        self.noutput = noutput
-        self.lstm = nn.LSTM(ninput, noutput, 1, bidirectional=self.ndir - 1)
+        self.lstm = nn.LSTM(ninput, noutput,
+                            num_layers=num_layers,
+                            bidirectional=bidirectional,
+                            batch_first=batch_first)
 
-    def forward(self, seq, volatile=False):
-        seq = bdl2lbd(seq)
-        l, bs, d = seq.size()
-        assert d == self.ninput, seq.size()
-        h0, c0 = lstm_state((self.ndir, bs, self.noutput), seq)
-        post_lstm, _ = self.lstm(seq, (h0, c0))
-        return lbd2bdl(post_lstm)
+    def forward(self, seq, volatile=False, verbose=False):
+        ninput = self.lstm.input_size
+        noutput = self.lstm.hidden_size
+        if self.lstm.batch_first:
+            bs, l, d = seq.shape
+        else:
+            l, bs, d = seq.shape
+        assert d==ninput
+        sd = self.lstm.num_layers * \
+                (1 + bool(self.lstm.bidirectional))
+        h0, c0 = lstm_state((sd, bs, noutput), seq)
+
+        output, _ = self.lstm(seq, (h0, c0))
+        return output
 
     def __repr__(self):
-        return "LSTM1({}, {}, ndir={})".format(
-                      self.ninput,
-                      self.noutput,
-                      self.ndir)
+        return "LSTM1({}, {}, bidir={})".format(
+                      self.lstm.input_size,
+                      self.lstm.hidden_size,
+                      self.lstm.bidirectional)
 
 
 class LSTM2to1(nn.Module):
