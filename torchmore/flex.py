@@ -11,6 +11,7 @@ from torch.autograd import Variable
 
 from . import helpers, layers
 
+verbose = False
 
 class Flex(nn.Module):
     def __init__(self, creator):
@@ -21,6 +22,7 @@ class Flex(nn.Module):
     def forward(self, *args):
         if self.layer is None:
             self.layer = self.creator(*args)
+            if verbose: print("# created", self.layer)
         return self.layer.forward(*args)
 
     def __repr__(self):
@@ -66,17 +68,17 @@ def Lstm1(*args, **kw):
     return Flex(creator)
 
 
-def LSTM1to0(*args, **kw):
-    def creator(x):
-        assert x.ndimension() == 3
-        return layers.Lstm1to0(x.size(1), *args, **kw)
-    return Flex(creator)
-
-
 def Lstm2(*args, **kw):
     def creator(x):
         assert x.ndimension() == 4
         return layers.LSTM2(x.size(1), *args, **kw)
+    return Flex(creator)
+
+
+def LSTM1to0(*args, **kw):
+    def creator(x):
+        assert x.ndimension() == 3
+        return layers.Lstm1to0(x.size(2), *args, **kw)
     return Flex(creator)
 
 

@@ -96,7 +96,7 @@ class Info(nn.Module):
     def forward(self, x):
         if self.count % self.every == 0:
             print(("Info", self.info, x.size(),
-                  x.min().data[0], x.max().data[0]))
+                  x.min().item(), x.max().item()))
         return x
 
     def __repr__(self):
@@ -355,23 +355,20 @@ class LSTM1(nn.Module):
         assert noutput is not None
         self.lstm = nn.LSTM(ninput, noutput,
                             num_layers=num_layers,
-                            bidirectional=bidirectional,
-                            batch_first=batch_first)
+                            bidirectional=bidirectional)
 
     def forward(self, seq, volatile=False, verbose=False):
         ninput = self.lstm.input_size
         noutput = self.lstm.hidden_size
-        if self.lstm.batch_first:
-            bs, l, d = seq.shape
-        else:
-            l, bs, d = seq.shape
+        # BDL -> LBD
+        seq = bdl2lbd(seq)
+        l, bs, d = seq.shape
         assert d==ninput
         sd = self.lstm.num_layers * \
                 (1 + bool(self.lstm.bidirectional))
         h0, c0 = lstm_state((sd, bs, noutput), seq)
-
         output, _ = self.lstm(seq, (h0, c0))
-        return output
+        return lbd2bdl(output)
 
     def __repr__(self):
         return "LSTM1({}, {}, bidir={})".format(
@@ -379,6 +376,59 @@ class LSTM1(nn.Module):
                       self.lstm.hidden_size,
                       self.lstm.bidirectional)
 
+
+
+class RowwiseLSTM(nn.Module):
+    def __init__(self, ninput=None, noutput=None, ndir=2):
+        nn.Module.__init__(self)
+        self.ndir = ndir
+        self.ninput = ninput
+        self.noutput = noutput
+        self.lstm = nn.LSTM(ninput, noutput, 1, bidirectional=self.ndir - 1)
+
+    def forward(self, img):
+        volatile = not isinstance(img, Variable) or img.volatile
+        b, d, h, w = img.size()
+        # BDHW -> WHBD -> WB'D
+        seq = img.permute(3, 2, 0, 1).contiguous().view(w, h * b, d)
+        # WB'D
+        h0, c0 = lstm_state((self.ndir, h*b, self.noutput), img)
+        seqresult, _ = self.lstm(seq, (h0, c0))
+        # WB'D' -> BD'HW
+        result = seqresult.view(
+            w, h, b, self.noutput * self.ndir).permute(2, 3, 1, 0)
+        return result
+
+    def __repr__(self):
+        return "RowwiseLSTM({}, {}, ndir={})".format(
+                      self.ninput,
+                      self.noutput,
+                      self.ndir)
+
+
+class LSTM2(nn.Module):
+    """A 2D LSTM module."""
+
+    def __init__(self, ninput=None, noutput=None, nhidden=None, ndir=2):
+        nn.Module.__init__(self)
+        assert ndir in [1, 2]
+        nhidden = nhidden or noutput
+        self.hlstm = RowwiseLSTM(ninput, nhidden, ndir=ndir)
+        self.vlstm = RowwiseLSTM(nhidden * ndir, noutput, ndir=ndir)
+
+    def forward(self, img):
+        horiz = self.hlstm(img)
+        horizT = horiz.permute(0, 1, 3, 2).contiguous()
+        vert = self.vlstm(horizT)
+        vertT = vert.permute(0, 1, 3, 2).contiguous()
+        return vertT
+
+    def __repr__(self):
+        return "LSTM2({}, {}, nhidden={}, ndir={})".format(
+                      self.hlstm.ninput,
+                      self.vlstm.noutput,
+                      self.hlstm.noutput,
+                      self.hlstm.ndir)
 
 class LSTM2to1(nn.Module):
     """An LSTM that summarizes one dimension."""
@@ -445,55 +495,3 @@ class LSTM1to0(nn.Module):
                       self.ninput,
                       self.noutput)
 
-
-class RowwiseLSTM(nn.Module):
-    def __init__(self, ninput=None, noutput=None, ndir=2):
-        nn.Module.__init__(self)
-        self.ndir = ndir
-        self.ninput = ninput
-        self.noutput = noutput
-        self.lstm = nn.LSTM(ninput, noutput, 1, bidirectional=self.ndir - 1)
-
-    def forward(self, img):
-        volatile = not isinstance(img, Variable) or img.volatile
-        b, d, h, w = img.size()
-        # BDHW -> WHBD -> WB'D
-        seq = img.permute(3, 2, 0, 1).contiguous().view(w, h * b, d)
-        # WB'D
-        h0, c0 = lstm_state((self.ndir, h*b, self.noutput), img)
-        seqresult, _ = self.lstm(seq, (h0, c0))
-        # WB'D' -> BD'HW
-        result = seqresult.view(
-            w, h, b, self.noutput * self.ndir).permute(2, 3, 1, 0)
-        return result
-
-    def __repr__(self):
-        return "RowwiseLSTM({}, {}, ndir={})".format(
-                      self.ninput,
-                      self.noutput,
-                      self.ndir)
-
-
-class LSTM2(nn.Module):
-    """A 2D LSTM module."""
-
-    def __init__(self, ninput=None, noutput=None, nhidden=None, ndir=2):
-        nn.Module.__init__(self)
-        assert ndir in [1, 2]
-        nhidden = nhidden or noutput
-        self.hlstm = RowwiseLSTM(ninput, nhidden, ndir=ndir)
-        self.vlstm = RowwiseLSTM(nhidden * ndir, noutput, ndir=ndir)
-
-    def forward(self, img):
-        horiz = self.hlstm(img)
-        horizT = horiz.permute(0, 1, 3, 2).contiguous()
-        vert = self.vlstm(horizT)
-        vertT = vert.permute(0, 1, 3, 2).contiguous()
-        return vertT
-
-    def __repr__(self):
-        return "LSTM2({}, {}, nhidden={}, ndir={})".format(
-                      self.hlstm.ninput,
-                      self.vlstm.noutput,
-                      self.hlstm.noutput,
-                      self.hlstm.ndir)
