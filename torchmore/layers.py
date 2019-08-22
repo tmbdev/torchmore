@@ -353,7 +353,8 @@ class LSTM1(nn.Module):
         nn.Module.__init__(self)
         assert ninput is not None
         assert noutput is not None
-        self.lstm = nn.LSTM(ninput, noutput,
+        self.lstm = nn.LSTM(ninput,
+                            noutput,
                             num_layers=num_layers,
                             bidirectional=bidirectional)
 
@@ -364,8 +365,7 @@ class LSTM1(nn.Module):
         seq = bdl2lbd(seq)
         l, bs, d = seq.shape
         assert d==ninput
-        sd = self.lstm.num_layers * \
-                (1 + bool(self.lstm.bidirectional))
+        sd = self.lstm.num_layers * (1 + bool(self.lstm.bidirectional))
         h0, c0 = lstm_state((sd, bs, noutput), seq)
         output, _ = self.lstm(seq, (h0, c0))
         return lbd2bdl(output)
@@ -379,42 +379,47 @@ class LSTM1(nn.Module):
 
 
 class RowwiseLSTM(nn.Module):
-    def __init__(self, ninput=None, noutput=None, ndir=2):
+    def __init__(self, ninput=None, noutput=None, bidirectional=True, num_layers=1):
         nn.Module.__init__(self)
-        self.ndir = ndir
-        self.ninput = ninput
-        self.noutput = noutput
-        self.lstm = nn.LSTM(ninput, noutput, 1, bidirectional=self.ndir - 1)
+        assert ninput is not None
+        assert noutput is not None
+        self.lstm = nn.LSTM(ninput,
+                            noutput,
+                            num_layers,
+                            bidirectional=bidirectional)
 
     def forward(self, img):
-        volatile = not isinstance(img, Variable) or img.volatile
+        ninput = self.lstm.input_size
+        noutput = self.lstm.hidden_size
+        bidirectional = self.lstm.bidirectional
+        ndir = bidirectional+1
         b, d, h, w = img.size()
         # BDHW -> WHBD -> WB'D
         seq = img.permute(3, 2, 0, 1).contiguous().view(w, h * b, d)
         # WB'D
-        h0, c0 = lstm_state((self.ndir, h*b, self.noutput), img)
+        sd = self.lstm.num_layers * (1 + bool(self.lstm.bidirectional))
+        h0, c0 = lstm_state((sd, h*b, noutput), seq)
         seqresult, _ = self.lstm(seq, (h0, c0))
         # WB'D' -> BD'HW
-        result = seqresult.view(
-            w, h, b, self.noutput * self.ndir).permute(2, 3, 1, 0)
+        result = seqresult.view(w, h, b, noutput*ndir).permute(2, 3, 1, 0)
         return result
 
     def __repr__(self):
         return "RowwiseLSTM({}, {}, ndir={})".format(
-                      self.ninput,
-                      self.noutput,
-                      self.ndir)
+                      self.lstm.input_size,
+                      self.lstm.hidden_size,
+                      self.lstm.bidirectional)
 
 
 class LSTM2(nn.Module):
     """A 2D LSTM module."""
 
-    def __init__(self, ninput=None, noutput=None, nhidden=None, ndir=2):
+    def __init__(self, ninput=None, noutput=None, nhidden=None, bidirectional=True):
         nn.Module.__init__(self)
-        assert ndir in [1, 2]
         nhidden = nhidden or noutput
-        self.hlstm = RowwiseLSTM(ninput, nhidden, ndir=ndir)
-        self.vlstm = RowwiseLSTM(nhidden * ndir, noutput, ndir=ndir)
+        ndir = bidirectional+1
+        self.hlstm = RowwiseLSTM(ninput, nhidden, bidirectional=bidirectional)
+        self.vlstm = RowwiseLSTM(nhidden * ndir, noutput, bidirectional=bidirectional)
 
     def forward(self, img):
         horiz = self.hlstm(img)
@@ -424,11 +429,12 @@ class LSTM2(nn.Module):
         return vertT
 
     def __repr__(self):
-        return "LSTM2({}, {}, nhidden={}, ndir={})".format(
-                      self.hlstm.ninput,
-                      self.vlstm.noutput,
-                      self.hlstm.noutput,
-                      self.hlstm.ndir)
+        ndir = 1+self.hlstm.lstm.bidirectional+1
+        return "LSTM2({}, {}, nhidden={}, bidirectional={})".format(
+                      self.hlstm.lstm.input_size,
+                      self.vlstm.lstm.hidden_size//ndir,
+                      self.hlstm.lstm.hidden_size//ndir,
+                      self.hlstm.lstm.bidirectional)
 
 class LSTM2to1(nn.Module):
     """An LSTM that summarizes one dimension."""
@@ -495,3 +501,38 @@ class LSTM1to0(nn.Module):
                       self.ninput,
                       self.noutput)
 
+class Pooling2d(nn.Module):
+    """Perform max pooling/unpooling"""
+
+    def __init__(self, *args, kernel_size=2, **kw):
+        nn.Module.__init__(self)
+        self.pool = torch.nn.MaxPool2d(kernel_size, return_indices=True, ceil_mode=True)
+        self.f = args[0] if len(args)==1 else nn.Sequential(*args)
+        self.unpool = torch.nn.MaxUnpool2d(kernel_size)
+
+    def forward(self, x):
+        y, indices = self.pool(x)
+        z = self.f(y)
+        d0, d1, d2, d3 = indices.shape
+        #print(z.shape, indices.shape)
+        return self.unpool(z[:d0,:d1,:d2,:d3], indices)
+
+    def __repr__(self):
+        return "Pooling2d(\n"+repr(self.f)+"\n)"
+
+class Parallel(nn.Module):
+    """Run modules in parallel and concatenate the results."""
+    def __init__(self, *args, dim=1):
+        nn.Module.__init__(self)
+        self.args = args
+        for i, arg in enumerate(args):
+            self.add_module(str(i), arg)
+        self.dim = dim
+
+    def forward(self, x):
+        results = [f(x) for f in self.args]
+        #print([tuple(r.shape for r in results)])
+        return torch.cat(results, dim=self.dim)
+
+    def __repr__(self):
+        return "Parallel("+repr(self.args)+")"

@@ -129,7 +129,9 @@ def flex_replacer(module):
 
 def flex_freeze(model):
     replace_modules(model, flex_replacer)
-
+    
+def freeze(model):
+    replace_modules(model, flex_replacer)
 
 def delete_modules(model, f):
     for key in list(model._modules.keys()):
