@@ -54,11 +54,14 @@ class Fun(nn.Module):
     def __getnewargs__(self):
         return (self.f_str, self.info)
 
+    def __getnewargs_ex__(self):
+        return (self.f_str, self.info), {}
+
     def forward(self, x):
         return self.f(x)
 
     def __repr__(self):
-        return "Fun {} {}".format(self.info, self.f)
+        return "Fun {} {}".format(self.info, self.f_str)
 
 
 class PixelsToBatch(nn.Module):
