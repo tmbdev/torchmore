@@ -167,16 +167,55 @@ class CheckRange(nn.Module):
                            self.name)
 
 
-def reorder(old, new, x):
-    """Reorder dimensions by example."""
-    assert isinstance(old, str)
-    assert isinstance(new, str)
-    assert set(old) == set(new)
-    assert len(old) == len(new)
-    assert len(old) == len(set(old))
+def reorder(x, old, new):
+    assert isinstance(old, str) and isinstance(new, str)
+    assert set(old)==set(new) and len(old)==len(new) and len(set(old))==len(old)
     permutation = tuple([old.find(c) for c in new])
     assert len(old) == x.ndimension()
-    return x.permute(*self.permutation).contiguous()
+    return x.permute(permutation).contiguous()
+
+
+class Input(nn.Module):
+    def __init__(self, ndim=None, order=None, dtype=None, range=None, device=True, assume=True):
+        """Declares the input for a network.
+
+        :param ndim: required input dimensions
+        :param order: order of axes (e.g., BDL, BHWD, etc.)
+        :param dtype: dtype to convert to
+        :param range: tuple giving low/high values
+        :param device: input device to move to (True = auto)
+        :param assume: default input order (when tensor doesn't have order attribute; None=required)
+        """
+        super().__init__()
+        self.ndim = ndim
+        self.order = order
+        self.dtype = dtype
+        self.range = range
+        self.device = device
+        if device is True:
+            self.param = torch.nn.Parameter(torch.zeros(1))
+        self.assume = assume
+    def forward(self, x):
+        if self.ndim is not None:
+            assert x.ndimension() == self.ndim
+        if self.range is not None:
+            assert x.min().item() >= self.range[0]
+            assert x.max().item() <= self.range[1]
+        if self.order is not None:
+            if hasattr(x, "order"):
+                x = reorder(x, x.order, self.order)
+            else:
+                if self.assume is True:
+                    pass
+                elif self.assume is None:
+                    raise ValueError("input is required to have a .order property")
+                else:
+                    x = reorder(x, self.assume, self.order)
+        if self.device is True:
+            x = x.to(device=self.param.device, dtype=self.dtype)
+        else:
+            x = x.to(device=self.device, dtype=self.dtype)
+        return x
 
 
 class Reorder(nn.Module):
