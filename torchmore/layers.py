@@ -220,6 +220,10 @@ class Input(nn.Module):
         else:
             x = x.to(device=self.device, dtype=self.dtype)
         return x
+    def __str__(self):
+        return f"Input(ndim={self.ndim}, order={self.order}, dtype={self.dtype}, range={self.range}, device={self.device}, assume={self.assume})"
+    def __repr__(self):
+        return f"Input(ndim={self.ndim}, order={self.order}, dtype={self.dtype}, range={self.range}, device={self.device}, assume={self.assume})"
 
 
 class Reorder(nn.Module):
