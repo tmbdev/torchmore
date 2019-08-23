@@ -297,81 +297,8 @@ class Viewer(nn.Module):
         return "Viewer({})".format(
             ", ".join([repr(x) for x in self.shape]))
 
-
-class Flat(nn.Module):
-    """Reshape a tensor so that it has only batch and data dimensions."""
-
-    def __init__(self):
-        nn.Module.__init__(self)
-
-    def forward(self, x):
-        rank = len(x.size())
-        assert rank > 2
-        new_depth = np.prod(tuple(x.size())[1:])
-        return x.view(-1, new_depth)
-
-    def __repr__(self):
-        return "Flat()"
-
-
-class Textline2Img(nn.Module):
-    """Reshape BLD to B1LD"""
-
-    def __init__(self):
-        nn.Module.__init__(self)
-
-    def forward(self, seq):
-        b, l, d = seq.size()
-        return seq.view(b, 1, l, d)
-
-    def __repr__(self):
-        return "Textline2Img()"
-
-
-class Img2Seq(nn.Module):
-    """Reshape BDWH to B(D*H)W"""
-
-    def __init__(self):
-        nn.Module.__init__(self)
-
-    def forward(self, img):
-        b, d, w, h = img.size()
-        perm = img.permute(0, 1, 3, 2).contiguous()
-        return perm.view(b, d * h, w)
-
-    def __repr__(self):
-        return "Img2Seq()"
-
-
-class ImgMaxSeq(nn.Module):
-    """Reshape BDWH to BWD, computing max along H."""
-
-    def __init__(self):
-        nn.Module.__init__(self)
-
-    def forward(self, img):
-        # BDWH -> BDW -> BWD
-        return img.max(3)[0].squeeze(3)
-
-    def __repr__(self):
-        return "ImgMaxSeq()"
-
-
-class ImgSumSeq(nn.Module):
-    """Reshape BDWH to BWD, computing sum along H."""
-
-    def __init__(self):
-        nn.Module.__init__(self)
-
-    def forward(self, img):
-        # BDWH -> BDW -> BWD
-        return img.sum(3)[0].squeeze(3).permute(0, 2, 1).contiguous()
-
-    def __repr__(self):
-        return "ImgSumSeq()"
-
-
 def lstm_state(shape, seq):
+    # FIXME--not needed anymore
     """Create hidden state for LSTM."""
     h0 = torch.zeros(shape, dtype=seq.dtype,
                      device=seq.device, requires_grad=False)
@@ -380,7 +307,7 @@ def lstm_state(shape, seq):
     return h0, c0
 
 
-class LSTM1(nn.Module):
+class LSTM1BDL(nn.Module):
     """A simple bidirectional LSTM.
 
     All the sequence processing layers use BDL order by default to
@@ -404,6 +331,7 @@ class LSTM1(nn.Module):
         seq = bdl2lbd(seq)
         l, bs, d = seq.shape
         assert d==ninput
+        # FIXME--not needed anymore
         sd = self.lstm.num_layers * (1 + bool(self.lstm.bidirectional))
         h0, c0 = lstm_state((sd, bs, noutput), seq)
         output, _ = self.lstm(seq, (h0, c0))
@@ -436,6 +364,7 @@ class RowwiseLSTM(nn.Module):
         # BDHW -> WHBD -> WB'D
         seq = img.permute(3, 2, 0, 1).contiguous().view(w, h * b, d)
         # WB'D
+        # FIXME--not needed anymore
         sd = self.lstm.num_layers * (1 + bool(self.lstm.bidirectional))
         h0, c0 = lstm_state((sd, h*b, noutput), seq)
         seqresult, _ = self.lstm(seq, (h0, c0))
@@ -450,8 +379,11 @@ class RowwiseLSTM(nn.Module):
                       self.lstm.bidirectional)
 
 
-class LSTM2(nn.Module):
-    """A 2D LSTM module."""
+class LSTM2BDHW(nn.Module):
+    """A 2D LSTM module.
+
+    Input order as for 2D convolutions.
+    """
 
     def __init__(self, ninput=None, noutput=None, nhidden=None, bidirectional=True):
         nn.Module.__init__(self)
@@ -475,7 +407,44 @@ class LSTM2(nn.Module):
                       self.hlstm.lstm.hidden_size//ndir,
                       self.hlstm.lstm.bidirectional)
 
-class LSTM2to1(nn.Module):
+class FIXME_Pooling2d(nn.Module):
+    """Perform max pooling/unpooling"""
+
+    def __init__(self, *args, kernel_size=2, **kw):
+        nn.Module.__init__(self)
+        self.pool = torch.nn.MaxPool2d(kernel_size, return_indices=True, ceil_mode=True)
+        self.f = args[0] if len(args)==1 else nn.Sequential(*args)
+        self.unpool = torch.nn.MaxUnpool2d(kernel_size)
+
+    def forward(self, x):
+        y, indices = self.pool(x)
+        z = self.f(y)
+        d0, d1, d2, d3 = indices.shape
+        #print(z.shape, indices.shape)
+        return self.unpool(z[:d0,:d1,:d2,:d3], indices)
+
+    def __repr__(self):
+        return "Pooling2d(\n"+repr(self.f)+"\n)"
+
+class Parallel(nn.Module):
+    """Run modules in parallel and concatenate the results."""
+    def __init__(self, *args, dim=1):
+        nn.Module.__init__(self)
+        self.args = args
+        for i, arg in enumerate(args):
+            self.add_module(str(i), arg)
+        self.dim = dim
+
+    def forward(self, x):
+        results = [f(x) for f in self.args]
+        #print([tuple(r.shape for r in results)])
+        return torch.cat(results, dim=self.dim)
+
+    def __repr__(self):
+        return "Parallel("+repr(self.args)+")"
+
+
+class FIXME_LSTM2to1(nn.Module):
     """An LSTM that summarizes one dimension."""
     input_order = BDWH
     output_order = BDL
@@ -512,7 +481,7 @@ class LSTM2to1(nn.Module):
                       self.noutput)
 
 
-class LSTM1to0(nn.Module):
+class FIXME_LSTM1to0(nn.Module):
     """An LSTM that summarizes one dimension."""
     input_order = BDL
     output_order = BD
@@ -540,38 +509,3 @@ class LSTM1to0(nn.Module):
                       self.ninput,
                       self.noutput)
 
-class Pooling2d(nn.Module):
-    """Perform max pooling/unpooling"""
-
-    def __init__(self, *args, kernel_size=2, **kw):
-        nn.Module.__init__(self)
-        self.pool = torch.nn.MaxPool2d(kernel_size, return_indices=True, ceil_mode=True)
-        self.f = args[0] if len(args)==1 else nn.Sequential(*args)
-        self.unpool = torch.nn.MaxUnpool2d(kernel_size)
-
-    def forward(self, x):
-        y, indices = self.pool(x)
-        z = self.f(y)
-        d0, d1, d2, d3 = indices.shape
-        #print(z.shape, indices.shape)
-        return self.unpool(z[:d0,:d1,:d2,:d3], indices)
-
-    def __repr__(self):
-        return "Pooling2d(\n"+repr(self.f)+"\n)"
-
-class Parallel(nn.Module):
-    """Run modules in parallel and concatenate the results."""
-    def __init__(self, *args, dim=1):
-        nn.Module.__init__(self)
-        self.args = args
-        for i, arg in enumerate(args):
-            self.add_module(str(i), arg)
-        self.dim = dim
-
-    def forward(self, x):
-        results = [f(x) for f in self.args]
-        #print([tuple(r.shape for r in results)])
-        return torch.cat(results, dim=self.dim)
-
-    def __repr__(self):
-        return "Parallel("+repr(self.args)+")"

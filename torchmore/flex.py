@@ -61,31 +61,24 @@ def Conv3d(*args, **kw):
     return Flex(creator)
 
 
+def LSTM(*args, **kw):
+    def creator(x):
+        assert x.ndimension() == 3
+        # input is LBD
+        return nn.LSTM(x.size(2), *args, **kw)
+    return Flex(creator)
+
 def Lstm1(*args, **kw):
     def creator(x):
         assert x.ndimension() == 3
-        return layers.LSTM1(x.size(1), *args, **kw)
+        return layers.LSTM1BDL(x.size(1), *args, **kw)
     return Flex(creator)
 
 
 def Lstm2(*args, **kw):
     def creator(x):
         assert x.ndimension() == 4
-        return layers.LSTM2(x.size(1), *args, **kw)
-    return Flex(creator)
-
-
-def LSTM1to0(*args, **kw):
-    def creator(x):
-        assert x.ndimension() == 3
-        return layers.Lstm1to0(x.size(2), *args, **kw)
-    return Flex(creator)
-
-
-def Lstm2to1(*args, **kw):
-    def creator(x):
-        assert x.ndimension() == 4
-        return layers.LSTM2to1(x.size(1), *args, **kw)
+        return layers.LSTM2BDHW(x.size(1), *args, **kw)
     return Flex(creator)
 
 
@@ -126,11 +119,15 @@ def flex_replacer(module):
     else:
         return None
 
-
 def flex_freeze(model):
+    warnings.warn_once("use flex.shape_inference instead of flex_freeze")
     replace_modules(model, flex_replacer)
-    
+
 def freeze(model):
+    warnings.warn_once("use flex.shape_inference instead of freeze")
+    replace_modules(model, flex_replacer)
+
+def shape_inference(model):
     replace_modules(model, flex_replacer)
 
 def delete_modules(model, f):
