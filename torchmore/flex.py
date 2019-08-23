@@ -65,7 +65,7 @@ def LSTM(*args, **kw):
     def creator(x):
         assert x.ndimension() == 3
         # input is LBD
-        return nn.LSTM(x.size(2), *args, **kw)
+        return layers.LSTM1(x.size(2), *args, **kw)
     return Flex(creator)
 
 def Lstm1(*args, **kw):
@@ -124,10 +124,14 @@ def flex_freeze(model):
     replace_modules(model, flex_replacer)
 
 def freeze(model):
-    warnings.warn_once("use flex.shape_inference instead of freeze")
     replace_modules(model, flex_replacer)
 
-def shape_inference(model):
+def shape_inference(model, tensor, dtype=None):
+    if isinstance(tensor, (tuple, list)):
+        tensor = torch.zeros(tensor, dtype=dtype)
+    model.eval()
+    with autograd.no_grad():
+        model(tensor)
     replace_modules(model, flex_replacer)
 
 def delete_modules(model, f):

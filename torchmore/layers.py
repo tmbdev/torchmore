@@ -199,8 +199,9 @@ class Input(nn.Module):
         if self.ndim is not None:
             assert x.ndimension() == self.ndim
         if self.range is not None:
-            assert x.min().item() >= self.range[0]
-            assert x.max().item() <= self.range[1]
+            lo = x.min().item()
+            hi = x.max().item()
+            assert lo >= self.range[0] and hi <= self.range[1], (lo, hi, self.range)
         if self.order is not None:
             if hasattr(x, "order"):
                 x = reorder(x, x.order, self.order)
@@ -296,6 +297,20 @@ class Viewer(nn.Module):
     def __repr__(self):
         return "Viewer({})".format(
             ", ".join([repr(x) for x in self.shape]))
+
+class LSTM1(nn.Module):
+    def __init__(self, ninput, noutput, num_layers=1,
+                 bidirectional=False, batch_first=False):
+        super().__init__()
+        assert ninput is not None
+        assert noutput is not None
+        self.lstm = nn.LSTM(ninput,
+                            noutput,
+                            num_layers=num_layers,
+                            bidirectional=bidirectional,
+                            batch_first=batch_first)
+    def forward(self, seq):
+        return self.lstm.forward(seq)[0]
 
 def lstm_state(shape, seq):
     # FIXME--not needed anymore
