@@ -174,7 +174,7 @@ class CheckRange(nn.Module):
 
 
 class Input(nn.Module):
-    def __init__(self, assume=True, reorder=None, dtype=None, range=None, device=True, sizes=None):
+    def __init__(self, assume, reorder=None, range=None, sizes=None, device=True, dtype=torch.float32):
         """Declares the input for a network.
 
         :param order: order of axes (e.g., BDL, BHWD, etc.)
@@ -201,7 +201,7 @@ class Input(nn.Module):
             if hasattr(x, "order"):
                 x = reorder(x, x.order, self.reorder)
             else:
-                if self.assume is True:
+                if self.assume is True or self.assume==self.reorder:
                     pass
                 elif self.assume is None:
                     raise ValueError("input is required to have a .order property")
