@@ -56,10 +56,27 @@ def test_Conv3d():
 
 def test_LSTM():
     mod = flex.LSTM(17)
-    # LBD
     a = torch.zeros((99, 7, 4))
     b = mod(a)
     assert b.size() == (99, 7, 17)
+
+def test_Lstm1d():
+    mod = flex.Lstm1d(17)
+    a = torch.zeros((7, 3, 99))
+    b = mod(a)
+    assert b.size() == (7, 17, 99)
+    a = torch.zeros((4, 3, 9))
+    b = mod(a)
+    assert b.size() == (4, 17, 9)
+
+def test_Lstm2d():
+    mod = flex.Lstm2d(17)
+    a = torch.zeros((7, 3, 99, 88))
+    b = mod(a)
+    assert b.size() == (7, 34, 99, 88)
+    a = torch.zeros((4, 3, 9, 8))
+    b = mod(a)
+    assert b.size() == (4, 34, 9, 8)
 
 def test_BatchNorm1d():
     mod = flex.BatchNorm1d(3)

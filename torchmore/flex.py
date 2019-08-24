@@ -68,22 +68,23 @@ def LSTM(*args, **kw):
         return layers.LSTM(x.size(2), *args, **kw)
     return Flex(creator)
 
-def BDHW_LSTM(*args, **kw):
-    def creator(x):
-        assert x.ndimension() == 3
-        return layers.BDHW_LSTM(x.size(1), *args, **kw)
-    return Flex(creator)
-
-Lstm2 = BDHW_LSTM
-
 def BDL_LSTM(*args, **kw):
     def creator(x):
-        assert x.ndimension() == 4
+        assert x.ndimension() == 3
         return layers.BDL_LSTM(x.size(1), *args, **kw)
     return Flex(creator)
 
 Lstm1 = BDL_LSTM
+Lstm1d = BDL_LSTM
 
+def BDHW_LSTM(*args, **kw):
+    def creator(x):
+        assert x.ndimension() == 4
+        return layers.BDHW_LSTM(x.size(1), *args, **kw)
+    return Flex(creator)
+
+Lstm2 = BDHW_LSTM
+Lstm2d = BDHW_LSTM
 
 def BatchNorm1d(*args, **kw):
     def creator(x):
