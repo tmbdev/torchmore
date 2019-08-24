@@ -174,10 +174,9 @@ class CheckRange(nn.Module):
 
 
 class Input(nn.Module):
-    def __init__(self, ndim=None, order=None, dtype=None, range=None, device=True, assume=True, sizes=None):
+    def __init__(self, assume=True, reorder=None, dtype=None, range=None, device=True, sizes=None):
         """Declares the input for a network.
 
-        :param ndim: required input dimensions
         :param order: order of axes (e.g., BDL, BHWD, etc.)
         :param dtype: dtype to convert to
         :param range: tuple giving low/high values
@@ -185,32 +184,29 @@ class Input(nn.Module):
         :param assume: default input order (when tensor doesn't have order attribute; None=required)
         """
         super().__init__()
-        self.ndim = ndim
-        self.order = order
+        self.assume = assume
+        self.reorder = reorder if reorder is not None else assume
         self.dtype = dtype
         self.range = range
         self.device = device
         if device is True:
             self.param = torch.nn.Parameter(torch.zeros(1))
-        self.assume = assume
         self.sizes = sizes
     def forward(self, x):
-        if self.ndim is not None:
-            assert x.ndimension() == self.ndim
         if self.range is not None:
             lo = x.min().item()
             hi = x.max().item()
             assert lo >= self.range[0] and hi <= self.range[1], (lo, hi, self.range)
-        if self.order is not None:
+        if self.reorder is not None:
             if hasattr(x, "order"):
-                x = reorder(x, x.order, self.order)
+                x = reorder(x, x.order, self.reorder)
             else:
                 if self.assume is True:
                     pass
                 elif self.assume is None:
                     raise ValueError("input is required to have a .order property")
                 else:
-                    x = reorder(x, self.assume, self.order)
+                    x = reorder(x, self.assume, self.reorder)
         if self.sizes is not None:
             for i, size in enumerate(self.sizes):
                 if size is None:
@@ -227,10 +223,9 @@ class Input(nn.Module):
         else:
             x = x.to(device=self.device, dtype=self.dtype)
         return x
-    def __str__(self):
-        return f"Input(ndim={self.ndim}, order={self.order}, dtype={self.dtype}, range={self.range}, device={self.device}, assume={self.assume})"
     def __repr__(self):
-        return f"Input(ndim={self.ndim}, order={self.order}, dtype={self.dtype}, range={self.range}, device={self.device}, assume={self.assume})"
+        return f"Input({self.assume}->{self.reorder} " + \
+            f"{self.dtype} {self.range} device={self.device} {self.sizes})"
 
 
 class Reorder(nn.Module):
