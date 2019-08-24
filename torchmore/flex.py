@@ -65,21 +65,20 @@ def Conv3d(*args, **kw):
 def LSTM(*args, **kw):
     def creator(x):
         assert x.ndimension() == 3
-        # input is LBD
-        return layers.LSTM1(x.size(2), *args, **kw)
+        return layers.LSTM(x.size(2), *args, **kw)
     return Flex(creator)
 
-def Lstm1(*args, **kw):
+def BDHW_LSTM(*args, **kw):
     def creator(x):
         assert x.ndimension() == 3
-        return layers.LSTM1BDL(x.size(1), *args, **kw)
+        return layers.BDHW_LSTM(x.size(1), *args, **kw)
     return Flex(creator)
 
 
-def Lstm2(*args, **kw):
+def BDL_LSTM(*args, **kw):
     def creator(x):
         assert x.ndimension() == 4
-        return layers.LSTM2BDHW(x.size(1), *args, **kw)
+        return layers.BDL_LSTM(x.size(1), *args, **kw)
     return Flex(creator)
 
 
@@ -125,6 +124,7 @@ def flex_freeze(model):
     replace_modules(model, flex_replacer)
 
 def freeze(model):
+    warnings.warn_once("use flex.shape_inference instead of freeze")
     replace_modules(model, flex_replacer)
 
 def shape_inference(model, tensor, dtype=None):

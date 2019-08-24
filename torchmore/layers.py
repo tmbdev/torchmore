@@ -300,6 +300,15 @@ class Viewer(nn.Module):
         return "Viewer({})".format(
             ", ".join([repr(x) for x in self.shape]))
 
+class LSTM(nn.Module):
+    """LSTM wrapper that discards the state."""
+    def __init__(self, *args, **kw):
+        super().__init__()
+        self.lstm = nn.LSTM(*args, **kw)
+
+    def forward(self, *args, **kw):
+        return self.lstm(*args, **kw)[0]
+
 class BDL_LSTM(nn.Module):
     """A simple bidirectional LSTM.
 
