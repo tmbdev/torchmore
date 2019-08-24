@@ -124,11 +124,9 @@ def flex_replacer(module):
         return None
 
 def flex_freeze(model):
-    warnings.warn_once("use flex.shape_inference instead of flex_freeze")
     replace_modules(model, flex_replacer)
 
 def freeze(model):
-    warnings.warn_once("use flex.shape_inference instead of freeze")
     replace_modules(model, flex_replacer)
 
 def shape_inference(model, tensor, dtype=None):
