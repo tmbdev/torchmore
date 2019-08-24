@@ -49,7 +49,7 @@ def test_CheckRange():
     assert (b.cpu()==a.cpu()).all()
 
 def test_Input():
-    mod = layers.Input(ndim=4, order="ABCD")
+    mod = layers.Input(ndim=4, order="ABCD", sizes=(4, 5, 2, 3))
     a = torch.ones((2, 3, 4, 5))
     a.order = "CDAB"
     b = mod(a)

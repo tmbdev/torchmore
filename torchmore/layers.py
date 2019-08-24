@@ -174,7 +174,7 @@ class CheckRange(nn.Module):
 
 
 class Input(nn.Module):
-    def __init__(self, ndim=None, order=None, dtype=None, range=None, device=True, assume=True):
+    def __init__(self, ndim=None, order=None, dtype=None, range=None, device=True, assume=True, sizes=None):
         """Declares the input for a network.
 
         :param ndim: required input dimensions
@@ -193,6 +193,9 @@ class Input(nn.Module):
         if device is True:
             self.param = torch.nn.Parameter(torch.zeros(1))
         self.assume = assume
+        self.sizes = sizes
+        if self.sizes is not None:
+            self.sizes = [(x, x) if isinstance(x, int) else x for x in self.sizes]
     def forward(self, x):
         if self.ndim is not None:
             assert x.ndimension() == self.ndim
@@ -210,6 +213,10 @@ class Input(nn.Module):
                     raise ValueError("input is required to have a .order property")
                 else:
                     x = reorder(x, self.assume, self.order)
+        if self.sizes is not None:
+            for (i, actual), (lo, hi) in zip(enumerate(tuple(x.size())), self.sizes):
+                assert actual>=lo, ("input size too small", i, actual, (lo, hi))
+                assert actual<=hi, ("input size too large", i, actual, (lo, hi))
         if self.device is True:
             x = x.to(device=self.param.device, dtype=self.dtype)
         else:
