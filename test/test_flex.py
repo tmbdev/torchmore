@@ -92,9 +92,17 @@ def test_BatchNorm3d():
 
 
 def test_shape_inference():
-    pass
-    #mod = flex.shape_inference()
-
-def test_delete_modules():
-    pass
-    #mod = flex.delete_modules()
+    mod = nn.Sequential(flex.Conv1d(3, 3, padding=1))
+    print(mod)
+    assert "Flex" in repr(mod)
+    a = torch.zeros((7, 3, 99))
+    b = mod(a)
+    assert b.size() == (7, 3, 99)
+    assert "Flex" in repr(mod)
+    print(mod)
+    flex.shape_inference(mod, a.shape)
+    print(mod)
+    assert "Flex" not in repr(mod)
+    a = torch.zeros((4, 3, 9))
+    b = mod(a)
+    assert b.size() == (4, 3, 9)
