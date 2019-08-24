@@ -10,8 +10,111 @@ from builtins import next
 
 import numpy as np
 
+import torch
+from torch import nn
 from torchmore import layers
 
-
-def test_make():
+def test_weighted_grad():
     pass
+
+def test_Fun():
+    mod = layers.Fun("lambda x: x[0]**2")
+    a = torch.ones((2, 3, 4))
+    b = mod(a)
+    assert (b==1).all()
+    assert tuple(b.shape) == (3, 4)
+
+def test_Info():
+    mod = layers.Info()
+    a = torch.ones((2, 3, 4))
+    b = mod(a)
+    assert (b==a).all()
+
+def test_CheckSizes():
+    mod = layers.CheckSizes(2, 3, 4)
+    a = torch.ones((2, 3, 4))
+    b = mod(a)
+    assert (b==a).all()
+
+def test_Device():
+    mod = layers.Device("cpu")
+    a = torch.ones((2, 3, 4))
+    b = mod(a)
+    assert (b.cpu()==a.cpu()).all()
+
+def test_CheckRange():
+    mod = layers.CheckRange(0, 2)
+    a = torch.ones((2, 3, 4))
+    b = mod(a)
+    assert (b.cpu()==a.cpu()).all()
+
+def test_Input():
+    mod = layers.Input(ndim=4, order="ABCD")
+    a = torch.ones((2, 3, 4, 5))
+    a.order = "CDAB"
+    b = mod(a)
+    assert tuple(b.shape) == (4, 5, 2, 3)
+
+def test_Reorder():
+    mod = layers.Reorder("ABC", "CBA")
+    a = torch.ones((2, 3, 4))
+    b = mod(a)
+    assert tuple(b.shape) == (4, 3, 2)
+
+def test_Permute():
+    mod = layers.Permute(2, 1, 0)
+    a = torch.ones((2, 3, 4))
+    b = mod(a)
+    assert tuple(b.shape) == (4, 3, 2)
+
+def test_Reshape():
+    mod = layers.Reshape(0, (1, 2))
+    a = torch.ones((2, 3, 4))
+    b = mod(a)
+    assert tuple(b.shape) == (2, 12)
+
+def test_Viewer():
+    mod = layers.Viewer(6, 4)
+    a = torch.ones((2, 3, 4))
+    b = mod(a)
+    assert tuple(b.shape) == (6, 4)
+
+def test_BDL_LSTM():
+    mod = layers.BDL_LSTM(3, 20)
+    a = torch.ones((17, 3, 100))
+    b = mod(a)
+    assert tuple(b.shape) == (17, 20, 100)
+
+def test_BDHW_LSTM():
+    mod = layers.BDHW_LSTM(3, 20)
+    a = torch.ones((17, 3, 48, 64))
+    b = mod(a)
+    assert tuple(b.shape) == (17, 40, 48, 64)
+
+def test_SimplePooling2d():
+    mod = layers.SimplePooling2d([nn.Conv2d(1, 1, 3, padding=(1, 1))])
+    a = torch.ones((17, 1, 64, 64))
+    b = mod(a)
+    assert a.size() == b.size()
+
+def test_AcrossPooling2d():
+    mod = layers.AcrossPooling2d(
+        [nn.Conv2d(1, 1, 3, padding=(1, 1))],
+        [nn.Conv2d(1, 7, 3, padding=(1, 1))])
+    a = torch.ones((17, 1, 64, 64))
+    b = mod(a)
+    assert tuple(b.size()) == (17, 8, 64, 64)
+
+def test_Parallel():
+    mod = layers.Parallel(
+        nn.Conv2d(1, 4, 3, padding=(1, 1)),
+        nn.Conv2d(1, 7, 3, padding=(1, 1)))
+    a = torch.ones((17, 1, 64, 64))
+    b = mod(a)
+    assert tuple(b.size()) == (17, 11, 64, 64)
+
+def test_BDHW_LSTM_to_BDH():
+    mod = layers.BDHW_LSTM_to_BDH(3, 13)
+    a = torch.ones((17, 3, 48, 64))
+    b = mod(a)
+    assert tuple(b.shape) == (17, 13, 48)

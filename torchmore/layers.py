@@ -8,68 +8,51 @@ import numpy as np
 import torch
 from torch import autograd, nn
 
-BD = "BD"
-LBD = "LBD"
-LDB = "LDB"
-BDL = "BDL"
-BLD = "BLD"
-BWHD = "BWHD"
-BDWH = "BDWH"
-BWH = "BWH"
-
-
 def deprecated(f):
     def g(*args, **kw):
         raise Exception("deprecated")
     return g
 
 
-def lbd2bdl(x):
-    assert len(x.size()) == 3
-    return x.permute(1, 2, 0).contiguous()
+def conform1(a, *args, slop=None, dims=True):
+    """Trim the remaining args down to the size of the first."""
+    if dims is True: dims = arange(a.ndimension())
+    if slop is not None:
+        # FIXME convert to torch
+        target = np.array(a.shape)
+        sizes = np.array([a.shape for a in args])
+        deltas = np.amax(np.abs(sizes-target[np.newaxis,:]), 0)
+        for i in dims:
+            assert deltas[i] <= slop, (sizes, deltas)
+    box = tuple(slice(j) if i in dims else slice(None)
+                for i,j in enumerate(a.shape))
+    return tuple([a[box]] + [arg[box] for arg in args])
 
 
-def bdl2lbd(x):
-    assert len(x.size()) == 3
-    return x.permute(2, 0, 1).contiguous()
+def conform(*args, slop=None, dims=True):
+    """Trim all args to the size of the smallest arg."""
+    if slop is not None:
+        # FIXME convert to torch
+        sizes = np.array([a.shape for a in args])
+        deltas = np.amax(sizes, 0)-np.amin(sizes, 0)
+        for i in dims:
+            assert deltas[i] <= slop, (sizes, deltas)
+    box = map(min, zip(*[a.shape for a in args]))
+    box = tuple(slice(j) if i in dims else slice(None)
+                for i,j in enumerate(box))
+    return tuple([arg[box] for arg in args])
 
 
-def data(x):
-    if isinstance(x, Variable):
-        return x.data
-    else:
-        return x
+def reorder(x, old, new):
+    """Reorder dimensions according to strings.
 
-
-class Fun(nn.Module):
-    """Turn an arbitrary function into a layer."""
-
-    def __init__(self, f, info=None):
-        nn.Module.__init__(self)
-        assert isinstance(f, str)
-        self.f = eval(f)
-        self.f_str = f
-        self.info = info
-
-    def __getnewargs__(self):
-        return (self.f_str, self.info)
-
-    def __getnewargs_ex__(self):
-        return (self.f_str, self.info), {}
-
-    def forward(self, x):
-        return self.f(x)
-
-    def __repr__(self):
-        return "Fun {} {}".format(self.info, self.f_str)
-
-
-class PixelsToBatch(nn.Module):
-    """Reshape an image batch so that the pixels are treated as separate samples."""
-
-    def forward(self, x):
-        b, d, h, w = x.size()
-        return x.permute(0, 2, 3, 1).contiguous().view(b*h*w, d)
+    E.g., reorder(x, "BLD", "LBD")
+    """
+    assert isinstance(old, str) and isinstance(new, str)
+    assert set(old)==set(new) and len(old)==len(new) and len(set(old))==len(old)
+    permutation = tuple([old.find(c) for c in new])
+    assert len(old) == x.ndimension()
+    return x.permute(permutation).contiguous()
 
 
 class WeightedGrad(autograd.Function):
@@ -82,16 +65,36 @@ class WeightedGrad(autograd.Function):
     def backward(self, grad_output):
         return grad_output * self.weights, None
 
-
 def weighted_grad(x, y):
     return WeightedGrad()(x, y)
+
+
+class Fun(nn.Module):
+    """Turn an arbitrary function into a layer."""
+
+    def __init__(self, f, info=None):
+        super().__init__()
+        assert isinstance(f, str)
+        self.f = eval(f)
+        self.f_str = f
+        self.info = info
+
+    def __getnewargs__(self):
+        return (self.f_str, self.info)
+
+    def forward(self, x):
+        return self.f(x)
+
+    def __repr__(self):
+        return "Fun {} {}".format(self.info, self.f)
+
 
 
 class Info(nn.Module):
     """Output information for the given input."""
 
     def __init__(self, info="", every=1000000):
-        nn.Module.__init__(self)
+        super().__init__()
         self.info = info
         self.count = 0
         self.every = every
@@ -113,7 +116,7 @@ class CheckSizes(nn.Module):
     """
 
     def __init__(self, *args, **kw):
-        nn.Module.__init__(self)
+        super().__init__()
         self.order = kw.get("order")
         self.name = kw.get("name")
         self.limits = [(x, x) if isinstance(x, int) else x for x in args]
@@ -139,7 +142,7 @@ class Device(nn.Module):
     """Always transfer tensor to device."""
 
     def __init__(self, device="cuda"):
-        nn.Module.__init__(self)
+        super().__init__()
         self.device = device
 
     def forward(self, x):
@@ -153,29 +156,21 @@ class CheckRange(nn.Module):
     """Check that values are within the given range."""
 
     def __init__(self, lo=-1e5, hi=1e5, name=""):
-        nn.Module.__init__(self)
+        super().__init__()
         self.valid = (lo, hi)
 
     def forward(self, x):
-        assert data(x).min().item(
-        ) >= self.valid[0], (self.name, data(x).min(), self.valid)
-        assert data(x).max().item(
-        ) <= self.valid[1], (self.name, data(x).max(), self.valid)
+        assert x.min().item() >= self.valid[0], \
+            (self.name, data(x).min(), self.valid)
+        assert x.max().item() <= self.valid[1], \
+            (self.name, data(x).max(), self.valid)
         return x
 
     def __repr__(self):
         return "CheckRange({}, {}, name=\"{}\")".format(
-                           self.lo,
-                           self.hi,
+                           self.valid[0],
+                           self.valid[1],
                            self.name)
-
-
-def reorder(x, old, new):
-    assert isinstance(old, str) and isinstance(new, str)
-    assert set(old)==set(new) and len(old)==len(new) and len(set(old))==len(old)
-    permutation = tuple([old.find(c) for c in new])
-    assert len(old) == x.ndimension()
-    return x.permute(permutation).contiguous()
 
 
 class Input(nn.Module):
@@ -232,7 +227,7 @@ class Reorder(nn.Module):
     def __init__(self, old, new):
         self.old = old
         self.new = new
-        nn.Module.__init__(self)
+        super().__init__()
         assert isinstance(old, str)
         assert isinstance(new, str)
         assert set(old) == set(new)
@@ -249,7 +244,7 @@ class Permute(nn.Module):
     """Permute the dimensions of the input tensor."""
 
     def __init__(self, *args):
-        nn.Module.__init__(self)
+        super().__init__()
         self.permutation = args
 
     def forward(self, x):
@@ -268,7 +263,7 @@ class Reshape(nn.Module):
     """
 
     def __init__(self, *args):
-        nn.Module.__init__(self)
+        super().__init__()
         self.shape = args
 
     def forward(self, x):
@@ -295,7 +290,7 @@ class Viewer(nn.Module):
     """Module equivalent of x.view(*args)"""
 
     def __init__(self, *args):
-        nn.Module.__init__(self)
+        super().__init__()
         self.shape = args
 
     def forward(self, x):
@@ -305,229 +300,119 @@ class Viewer(nn.Module):
         return "Viewer({})".format(
             ", ".join([repr(x) for x in self.shape]))
 
-class LSTM1(nn.Module):
-    def __init__(self, ninput, noutput, num_layers=1,
-                 bidirectional=False, batch_first=False):
-        super().__init__()
-        assert ninput is not None
-        assert noutput is not None
-        self.lstm = nn.LSTM(ninput,
-                            noutput,
-                            num_layers=num_layers,
-                            bidirectional=bidirectional,
-                            batch_first=batch_first)
-    def forward(self, seq):
-        return self.lstm.forward(seq)[0]
-
-def lstm_state(shape, seq):
-    # FIXME--not needed anymore
-    """Create hidden state for LSTM."""
-    h0 = torch.zeros(shape, dtype=seq.dtype,
-                     device=seq.device, requires_grad=False)
-    c0 = torch.zeros(shape, dtype=seq.dtype,
-                     device=seq.device, requires_grad=False)
-    return h0, c0
-
-
-class LSTM1BDL(nn.Module):
+class BDL_LSTM(nn.Module):
     """A simple bidirectional LSTM.
 
     All the sequence processing layers use BDL order by default to
     be consistent with 1D convolutions.
     """
 
-
     def __init__(self, ninput=None, noutput=None, num_layers=1, bidirectional=False, batch_first=True):
-        nn.Module.__init__(self)
+        super().__init__()
         assert ninput is not None
         assert noutput is not None
-        self.lstm = nn.LSTM(ninput,
-                            noutput,
-                            num_layers=num_layers,
+        self.lstm = nn.LSTM(ninput, noutput, num_layers=num_layers,
                             bidirectional=bidirectional)
 
     def forward(self, seq, volatile=False, verbose=False):
-        ninput = self.lstm.input_size
-        noutput = self.lstm.hidden_size
-        # BDL -> LBD
-        seq = bdl2lbd(seq)
-        l, bs, d = seq.shape
-        assert d==ninput
-        # FIXME--not needed anymore
-        sd = self.lstm.num_layers * (1 + bool(self.lstm.bidirectional))
-        h0, c0 = lstm_state((sd, bs, noutput), seq)
-        output, _ = self.lstm(seq, (h0, c0))
-        return lbd2bdl(output)
-
-    def __repr__(self):
-        return "LSTM1({}, {}, bidir={})".format(
-                      self.lstm.input_size,
-                      self.lstm.hidden_size,
-                      self.lstm.bidirectional)
+        seq = reorder(seq, "BDL", "LBD")
+        output, _ = self.lstm(seq)
+        return reorder(output, "LBD", "BDL")
 
 
-
-class RowwiseLSTM(nn.Module):
-    def __init__(self, ninput=None, noutput=None, bidirectional=True, num_layers=1):
-        nn.Module.__init__(self)
-        assert ninput is not None
-        assert noutput is not None
-        self.lstm = nn.LSTM(ninput,
-                            noutput,
-                            num_layers,
-                            bidirectional=bidirectional)
-
-    def forward(self, img):
-        ninput = self.lstm.input_size
-        noutput = self.lstm.hidden_size
-        bidirectional = self.lstm.bidirectional
-        ndir = bidirectional+1
-        b, d, h, w = img.size()
-        # BDHW -> WHBD -> WB'D
-        seq = img.permute(3, 2, 0, 1).contiguous().view(w, h * b, d)
-        # WB'D
-        # FIXME--not needed anymore
-        sd = self.lstm.num_layers * (1 + bool(self.lstm.bidirectional))
-        h0, c0 = lstm_state((sd, h*b, noutput), seq)
-        seqresult, _ = self.lstm(seq, (h0, c0))
-        # WB'D' -> BD'HW
-        result = seqresult.view(w, h, b, noutput*ndir).permute(2, 3, 1, 0)
-        return result
-
-    def __repr__(self):
-        return "RowwiseLSTM({}, {}, ndir={})".format(
-                      self.lstm.input_size,
-                      self.lstm.hidden_size,
-                      self.lstm.bidirectional)
-
-
-class LSTM2BDHW(nn.Module):
+class BDHW_LSTM(nn.Module):
     """A 2D LSTM module.
 
     Input order as for 2D convolutions.
     """
 
-    def __init__(self, ninput=None, noutput=None, nhidden=None, bidirectional=True):
-        nn.Module.__init__(self)
+    def __init__(self, ninput=None, noutput=None, nhidden=None, 
+                 num_layers=1, bidirectional=True):
+        super().__init__()
         nhidden = nhidden or noutput
         ndir = bidirectional+1
-        self.hlstm = RowwiseLSTM(ninput, nhidden, bidirectional=bidirectional)
-        self.vlstm = RowwiseLSTM(nhidden * ndir, noutput, bidirectional=bidirectional)
+        self.hlstm = nn.LSTM(ninput, nhidden, num_layers=num_layers,
+                             bidirectional=bidirectional)
+        self.vlstm = nn.LSTM(nhidden*ndir, noutput, num_layers=num_layers,
+                             bidirectional=bidirectional)
 
     def forward(self, img):
-        horiz = self.hlstm(img)
-        horizT = horiz.permute(0, 1, 3, 2).contiguous()
-        vert = self.vlstm(horizT)
-        vertT = vert.permute(0, 1, 3, 2).contiguous()
-        return vertT
+        b, d, h, w = img.shape
+        hin = reorder(img, "BDHW", "WHBD").view(w, h*b, d)
+        hout, _ = self.hlstm(hin)
+        vin = reorder(hout.view(w, h, b, -1), "WHBD", "HWBD").view(h, w*b, -1)
+        vout, _ = self.vlstm(vin)
+        return reorder(vout.view(h, w, b, -1), "HWBD", "BDHW")
 
-    def __repr__(self):
-        ndir = 1+self.hlstm.lstm.bidirectional+1
-        return "LSTM2({}, {}, nhidden={}, bidirectional={})".format(
-                      self.hlstm.lstm.input_size,
-                      self.vlstm.lstm.hidden_size//ndir,
-                      self.hlstm.lstm.hidden_size//ndir,
-                      self.hlstm.lstm.bidirectional)
 
-class FIXME_Pooling2d(nn.Module):
+class SimplePooling2d(nn.Module):
     """Perform max pooling/unpooling"""
 
-    def __init__(self, *args, kernel_size=2, **kw):
-        nn.Module.__init__(self)
-        self.pool = torch.nn.MaxPool2d(kernel_size, return_indices=True, ceil_mode=True)
-        self.f = args[0] if len(args)==1 else nn.Sequential(*args)
-        self.unpool = torch.nn.MaxUnpool2d(kernel_size)
+    def __init__(self, sub, mp=2, **kw):
+        super().__init__()
+        self.pool = torch.nn.MaxPool2d(mp, return_indices=True, ceil_mode=True)
+        self.sub = nn.Sequential(*sub) if isinstance(sub, list) else sub
+        self.unpool = torch.nn.MaxUnpool2d(mp)
 
     def forward(self, x):
         y, indices = self.pool(x)
-        z = self.f(y)
-        d0, d1, d2, d3 = indices.shape
-        #print(z.shape, indices.shape)
-        return self.unpool(z[:d0,:d1,:d2,:d3], indices)
+        z = self.sub(y)
+        indices, z = conform1(indices, z, dims=[0, 2, 3])
+        assert z.shape == indices.shape, (z.shape, indices.shape)
+        return self.unpool(z, indices)
 
     def __repr__(self):
-        return "Pooling2d(\n"+repr(self.f)+"\n)"
+        return "Pooling2d(\n"+repr(self.sub)+"\n)"
+
+
+class AcrossPooling2d(nn.Module):
+    """Perform max pooling/unpooling with across accumulation."""
+
+    def __init__(self, sub, across, mp=2, **kw):
+        super().__init__()
+        self.pool = torch.nn.MaxPool2d(mp, return_indices=True, ceil_mode=True)
+        self.sub = nn.Sequential(*sub) if isinstance(sub, list) else sub
+        self.across = nn.Sequential(*across) if isinstance(across, list) else across
+        self.unpool = torch.nn.MaxUnpool2d(mp)
+
+    def forward(self, x):
+        y, indices = self.pool(x)
+        z = self.sub(y)
+        indices, z = conform1(indices, z, slop=2, dims=[0, 2, 3])
+        up = self.unpool(z, indices)
+        across = self.across(x)
+        up, across = conform(up, across, slop=2, dims=[0, 2, 3])
+        return torch.cat([across, up], dim=1)
+
 
 class Parallel(nn.Module):
     """Run modules in parallel and concatenate the results."""
     def __init__(self, *args, dim=1):
-        nn.Module.__init__(self)
+        super().__init__()
         self.args = args
         for i, arg in enumerate(args):
+            if isinstance(arg, list):
+                arg = nn.Sequential(*arg)
             self.add_module(str(i), arg)
         self.dim = dim
 
     def forward(self, x):
         results = [f(x) for f in self.args]
-        #print([tuple(r.shape for r in results)])
         return torch.cat(results, dim=self.dim)
 
-    def __repr__(self):
-        return "Parallel("+repr(self.args)+")"
 
-
-class FIXME_LSTM2to1(nn.Module):
-    """An LSTM that summarizes one dimension."""
-    input_order = BDWH
-    output_order = BDL
-
+class BDHW_LSTM_to_BDH(nn.Module):
+    """An LSTM that summarizes 2D down to 1D along the last dim."""
     def __init__(self, ninput=None, noutput=None):
-        nn.Module.__init__(self)
-        self.ninput = ninput
-        self.noutput = noutput
+        super().__init__()
+        assert ninput is not None
+        assert noutput is not None
         self.lstm = nn.LSTM(ninput, noutput, 1, bidirectional=False)
 
     def forward(self, img, volatile=False):
-        # BDWH -> HBWD -> HBsD
-        b, d, w, h = img.size()
-        seq = img.permute(3, 0, 2, 1).contiguous().view(h, b * w, d)
-        bs = b * w
-        h0, c0 = lstm_state((1, bs, self.noutput), img)
-
-        # HBsD -> HBsD
-        assert seq.size() == (h, b * w, d), (seq.size(), (h, b * w, d))
-        post_lstm, _ = self.lstm(seq, (h0, c0))
-        assert post_lstm.size() == (h, b * w, self.noutput), (post_lstm.size(),
-                                                              (h, b * w, self.noutput))
-        # HBsD -> BsD -> BWD
-        final = post_lstm.select(0, h - 1).view(b, w, self.noutput)
-        assert final.size() == (b, w, self.noutput), (final.size(), (b, w, self.noutput))
-        # BWD -> BDW
-        final = final.permute(0, 2, 1).contiguous()
-        assert final.size() == (b, self.noutput, w), (final.size(),
-                                                      (b, self.noutput, self.noutput))
-        return final
-    def __repr__(self):
-        return "LSTM2to1({}, {})".format(
-                      self.ninput,
-                      self.noutput)
-
-
-class FIXME_LSTM1to0(nn.Module):
-    """An LSTM that summarizes one dimension."""
-    input_order = BDL
-    output_order = BD
-
-    def __init__(self, ninput=None, noutput=None):
-        nn.Module.__init__(self)
-        self.ninput = ninput
-        self.noutput = noutput
-        self.lstm = nn.LSTM(ninput, noutput, 1, bidirectional=False)
-
-    def forward(self, seq):
-        volatile = not isinstance(seq, Variable) or seq.volatile
-        seq = bdl2lbd(seq)
-        l, b, d = seq.size()
-        assert d == self.ninput, (d, self.ninput)
-        h0, c0 = lstm_state((1, b, self.noutput), seq)
-        assert seq.size() == (l, b, d)
-        post_lstm, _ = self.lstm(seq, (h0, c0))
-        assert post_lstm.size() == (l, b, self.noutput)
-        final = post_lstm.select(0, l - 1).view(b, self.noutput)
-        return final
-
-    def __repr__(self):
-        return "LSTM1to0({}, {})".format(
-                      self.ninput,
-                      self.noutput)
-
+        noutput = self.lstm.hidden_size
+        b, d, h, w = img.size()
+        seq = reorder(img, "BDHW", "WBHD").view(w, b*h, d)
+        out, (_, state) = self.lstm(seq)
+        assert state.size() == (1, b*h, noutput), ((w, b*h, noutput), state.size())
+        return reorder(state.view(b, h, noutput), "BHD", "BDH")
