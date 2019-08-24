@@ -194,8 +194,6 @@ class Input(nn.Module):
             self.param = torch.nn.Parameter(torch.zeros(1))
         self.assume = assume
         self.sizes = sizes
-        if self.sizes is not None:
-            self.sizes = [(x, x) if isinstance(x, int) else x for x in self.sizes]
     def forward(self, x):
         if self.ndim is not None:
             assert x.ndimension() == self.ndim
@@ -214,9 +212,16 @@ class Input(nn.Module):
                 else:
                     x = reorder(x, self.assume, self.order)
         if self.sizes is not None:
-            for (i, actual), (lo, hi) in zip(enumerate(tuple(x.size())), self.sizes):
-                assert actual>=lo, ("input size too small", i, actual, (lo, hi))
-                assert actual<=hi, ("input size too large", i, actual, (lo, hi))
+            for i, size in enumerate(self.sizes):
+                if size is None:
+                    continue
+                elif isinstance(size, int):
+                    assert x.size(i) == size, (i, x.size(i))
+                elif isinstance(size, (list, tuple)):
+                    lo, hi = size
+                    assert x.size(i) >= lo and x.size(i) <= hi, (i, x.size(i), (lo, hi))
+                else:
+                    raise ValueError("bad size spec")
         if self.device is True:
             x = x.to(device=self.param.device, dtype=self.dtype)
         else:
