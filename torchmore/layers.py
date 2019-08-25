@@ -189,8 +189,7 @@ class Input(nn.Module):
         self.dtype = dtype
         self.range = range
         self.device = device
-        if device is True:
-            self.param = torch.nn.Parameter(torch.zeros(1))
+        self.param = torch.nn.Parameter(torch.zeros(1))
         self.sizes = sizes
     def forward(self, x):
         if self.range is not None:
@@ -221,11 +220,12 @@ class Input(nn.Module):
         if self.device is True:
             x = x.to(device=self.param.device, dtype=self.dtype)
         else:
-            x = x.to(device=self.device, dtype=self.dtype)
+            x = x.type(self.dtype)
         return x
     def __repr__(self):
+        autodev = self.param.device if self.device else None
         return f"Input({self.assume}->{self.reorder} " + \
-            f"{self.dtype} {self.range} device={self.device} {self.sizes})"
+            f"{self.dtype} {self.range} {autodev} {self.sizes})"
 
 
 class Reorder(nn.Module):
