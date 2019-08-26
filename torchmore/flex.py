@@ -4,11 +4,14 @@
 # See the LICENSE file for licensing terms (TBD).
 #
 
+# TODO transfer the documentation strings to flex creators/instances
+
 import numpy as np
 import torch
 from torch import autograd, nn
 from torch.autograd import Variable
 import warnings
+from functools import wraps
 
 from . import helpers, layers
 
@@ -59,6 +62,28 @@ def Conv3d(*args, **kw):
     def creator(x):
         assert x.ndimension() == 5
         return nn.Conv3d(x.size(1), *args, **kw)
+    return Flex(creator)
+
+
+def ConvTranspose1d(*args, **kw):
+    def creator(x):
+        assert x.ndimension() == 3
+        d = x.size(1)
+        return nn.ConvTranspose1d(x.size(1), *args, **kw)
+    return Flex(creator)
+
+
+def ConvTranspose2d(*args, **kw):
+    def creator(x):
+        assert x.ndimension() == 4
+        return nn.ConvTranspose2d(x.size(1), *args, **kw)
+    return Flex(creator)
+
+
+def ConvTranspose3d(*args, **kw):
+    def creator(x):
+        assert x.ndimension() == 5
+        return nn.ConvTranspose3d(x.size(1), *args, **kw)
     return Flex(creator)
 
 

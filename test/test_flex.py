@@ -53,6 +53,35 @@ def test_Conv3d():
     b = mod(a)
     assert b.size() == (4, 17, 9, 8, 7)
 
+def test_ConvTranspose1d():
+    mod = flex.ConvTranspose1d(17, 3, padding=1)
+    a = torch.zeros((7, 3, 99))
+    b = mod(a)
+    assert b.size() == (7, 17, 99)
+    a = torch.zeros((4, 3, 9))
+    b = mod(a)
+    assert b.size() == (4, 17, 9)
+
+
+def test_ConvTranspose2d():
+    mod = flex.ConvTranspose2d(17, 3, padding=1, stride=2)
+    a = torch.zeros((7, 3, 99, 88))
+    b = mod(a)
+    assert b.size() == (7, 17, 197, 175)
+    a = torch.zeros((4, 3, 9, 8))
+    b = mod(a)
+    assert b.size() == (4, 17, 17, 15)
+
+
+def test_ConvTranspose3d():
+    mod = flex.ConvTranspose3d(17, 3, padding=1)
+    a = torch.zeros((7, 3, 99, 88, 77))
+    b = mod(a)
+    assert b.size() == (7, 17, 99, 88, 77)
+    a = torch.zeros((4, 3, 9, 8, 7))
+    b = mod(a)
+    assert b.size() == (4, 17, 9, 8, 7)
+
 
 def test_LSTM():
     mod = flex.LSTM(17)
