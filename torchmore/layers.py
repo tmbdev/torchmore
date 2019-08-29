@@ -49,9 +49,9 @@ def reorder(x, old, new):
     E.g., reorder(x, "BLD", "LBD")
     """
     assert isinstance(old, str) and isinstance(new, str)
-    assert set(old)==set(new) and len(old)==len(new) and len(set(old))==len(old)
+    assert set(old)==set(new) and len(old)==len(new) and len(set(old))==len(old), (old, new)
     permutation = tuple([old.find(c) for c in new])
-    assert len(old) == x.ndimension()
+    assert len(old) == x.ndimension(), (old, x.size())
     return x.permute(permutation).contiguous()
 
 
@@ -74,7 +74,7 @@ class Fun(nn.Module):
 
     def __init__(self, f, info=None):
         super().__init__()
-        assert isinstance(f, str)
+        assert isinstance(f, str), type(f)
         self.f = eval(f)
         self.f_str = f
         self.info = info
@@ -235,9 +235,9 @@ class Reorder(nn.Module):
         self.old = old
         self.new = new
         super().__init__()
-        assert isinstance(old, str)
-        assert isinstance(new, str)
-        assert set(old) == set(new)
+        assert isinstance(old, str), old
+        assert isinstance(new, str), new
+        assert set(old) == set(new), (old, new)
         self.permutation = tuple([old.find(c) for c in new])
 
     def forward(self, x):
