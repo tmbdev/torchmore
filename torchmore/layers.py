@@ -86,6 +86,21 @@ class Fun(nn.Module):
         return self.f(x)
 
     def __repr__(self):
+        return "Fun {} {}".format(self.info, self.f_str)
+
+class Fun_(nn.Module):
+    """Turn an arbitrary function into a layer."""
+
+    def __init__(self, f, info=None):
+        super().__init__()
+        assert callable(f)
+        self.f = f
+        self.info = info
+
+    def forward(self, x):
+        return self.f(x)
+
+    def __repr__(self):
         return "Fun {} {}".format(self.info, self.f)
 
 
