@@ -111,6 +111,12 @@ def BDHW_LSTM(*args, **kw):
 Lstm2 = BDHW_LSTM
 Lstm2d = BDHW_LSTM
 
+def BatchNorm(*args, **kw):
+    def creator(x):
+        assert x.ndimension() == 3
+        return nn.BatchNorm(x.size(1), *args, **kw)
+    return Flex(creator)
+
 def BatchNorm1d(*args, **kw):
     def creator(x):
         assert x.ndimension() == 3
