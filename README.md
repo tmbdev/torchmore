@@ -9,7 +9,11 @@ for writing PyTorch models for image recognition, OCR, and other applications.
 
 The `flex` library performs simple size inference. It does so by wrapping up individual layers in a wrapper that instantiates the layer only when dimensional data is available. The wrappers can be removed later and the model turned into one with only completely standard modules. That looks like this:
 
+    from torch import nn
+    from torchmore import layers, flex
+
     noutput = 10
+    
     model = nn.Sequential(
         layers.Input("BDHW"),
         flex.Conv2d(100),
@@ -23,6 +27,8 @@ The `flex` library performs simple size inference. It does so by wrapping up ind
         flex.BatchNorm(),
         nn.ReLU(),
         flex.Full(noutput)
+    )
+  
     flex.shape_inference(model, (1, 1, 28, 28))
 
 
