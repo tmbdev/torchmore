@@ -62,6 +62,20 @@ This says:
 - input tensors must have $D=1$
 - input tensors are transferred to the same device as weights for the model
 
+## The `.order` Attribute
+
+Note that if the input tensor has a `.order` attribute, that will be used to reorder the input dimensions into the desired dimensions. This allows the model to accept inputs in multiple orders. Consider
+
+    model = nn.Sequential(
+        layers.Input("BHWD", "BDHW", range=(0, 1), sizes=[None, 1, None, None]),
+        ...
+    )
+    a = torch.rand((1, 100, 150, 1))
+    b = a.permute(0, 3, 1, 2)
+    b.order = "BDHW"
+    
+    assert model(a) == model(b)
+
 
 
 # layers.Reorder
