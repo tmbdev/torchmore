@@ -4,9 +4,11 @@
 # See the LICENSE file for licensing terms (TBD).
 #
 
+import sys
 import numpy as np
 import torch
 from torch import autograd, nn
+from torch.nn import functional as F
 
 def deprecated(f):
     def g(*args, **kw):
@@ -376,6 +378,109 @@ class BDHW_LSTM(nn.Module):
         return reorder(vout.view(h, w, b, -1), "HWBD", "BDHW")
 
 
+
+class BDHW_LSTM_to_BDH(nn.Module):
+    """An LSTM that summarizes 2D down to 1D along the last dim."""
+    def __init__(self, ninput=None, noutput=None):
+        super().__init__()
+        assert ninput is not None
+        assert noutput is not None
+        self.lstm = nn.LSTM(ninput, noutput, 1, bidirectional=False)
+
+    def forward(self, img, volatile=False):
+        noutput = self.lstm.hidden_size
+        b, d, h, w = img.size()
+        seq = reorder(img, "BDHW", "WBHD").view(w, b*h, d)
+        out, (_, state) = self.lstm(seq)
+        assert state.size() == (1, b*h, noutput), ((w, b*h, noutput), state.size())
+        return reorder(state.view(b, h, noutput), "BHD", "BDH")
+
+### Common Layer Combinations
+
+def conv2d_block(d, r=3, mp=None, fmp=None, repeat=1):
+    """Generate a conv layer with batchnorm and optional maxpool."""
+    result = []
+    for i in range(repeat):
+        result += [
+            flex.Conv2d(d, r, padding=(r//2, r//2), stride=stride),
+            flex.BatchNorm2d(),
+            nn.ReLU()
+        ]    
+    result = conv2d(d, r, repeat=repeat)
+    if fmp is not None:
+        assert mp is None, (fmp, mp)
+        result += [nn.FractionalMaxPool2d(3, output_ratio=fmp)]
+    elif mp is not None:
+        result += [nn.MaxPool2d(mp)]
+    return result
+
+### Wrap-Around Modules
+
+class NoopSub(nn.Module):
+    """Noop wrap-around module (for testing/exploration)."""
+    def __init__(self, *args, sub=None, **kw):
+        super().__init__()
+        self.sub = sub
+    def forward(self, x):
+        return self.sub(x)
+
+class KeepSize(nn.Module):
+    """Run layers, then upsample back to the original.
+    """
+    def __init__(self, mode="bilinear", sub=None, dims=None):
+        super().__init__()
+        if isinstance(sub, list):
+            sub = nn.Sequential(*sub)
+        self.sub = sub
+        self.mode = mode
+        self.dims = dims
+    def forward(self, x):
+        y = self.sub(x)
+        if self.dims is None:
+            size = x.size()[2:]
+        else:
+            size = [x.size(i) for i in self.dims]
+        kw = dict(align_corners=False) if self.mode != "nearest" else {}
+        try:
+            return F.interpolate(y, size=size, mode=self.mode, **kw)
+        except Exception as exn:
+            print("error:", x.size(), y.size(), self.dims, size, self.mode, file=sys.stderr)
+            raise exn
+
+class Additive(nn.Module):
+    """Additive wrap-around module for Resnet-style architectures.
+
+    :args: modules whose output is to be added
+    :post: module to execute after everything has been added
+    """
+    def __init__(self, *args, post=None):
+        super().__init__()
+        self.sub = nn.ModuleList(args)
+        self.post = None
+    def forward(self, x):
+        y = self.sub[0](x)
+        for f in self.sub[1:]:
+            y = y + f(x)
+        if self.post is not None:
+            y = self.post(y)
+        return y
+
+class Parallel(nn.Module):
+    """Run modules in parallel and concatenate the results."""
+    def __init__(self, *args, dim=1):
+        super().__init__()
+        self.args = args
+        for i, arg in enumerate(args):
+            if isinstance(arg, list):
+                arg = nn.Sequential(*arg)
+            self.add_module(str(i), arg)
+        self.dim = dim
+
+    def forward(self, x):
+        results = [f(x) for f in self.args]
+        return torch.cat(results, dim=self.dim)
+
+
 class SimplePooling2d(nn.Module):
     """Perform max pooling/unpooling"""
 
@@ -416,34 +521,3 @@ class AcrossPooling2d(nn.Module):
         return torch.cat([across, up], dim=1)
 
 
-class Parallel(nn.Module):
-    """Run modules in parallel and concatenate the results."""
-    def __init__(self, *args, dim=1):
-        super().__init__()
-        self.args = args
-        for i, arg in enumerate(args):
-            if isinstance(arg, list):
-                arg = nn.Sequential(*arg)
-            self.add_module(str(i), arg)
-        self.dim = dim
-
-    def forward(self, x):
-        results = [f(x) for f in self.args]
-        return torch.cat(results, dim=self.dim)
-
-
-class BDHW_LSTM_to_BDH(nn.Module):
-    """An LSTM that summarizes 2D down to 1D along the last dim."""
-    def __init__(self, ninput=None, noutput=None):
-        super().__init__()
-        assert ninput is not None
-        assert noutput is not None
-        self.lstm = nn.LSTM(ninput, noutput, 1, bidirectional=False)
-
-    def forward(self, img, volatile=False):
-        noutput = self.lstm.hidden_size
-        b, d, h, w = img.size()
-        seq = reorder(img, "BDHW", "WBHD").view(w, b*h, d)
-        out, (_, state) = self.lstm(seq)
-        assert state.size() == (1, b*h, noutput), ((w, b*h, noutput), state.size())
-        return reorder(state.view(b, h, noutput), "BHD", "BDH")

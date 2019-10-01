@@ -7,7 +7,8 @@ from __future__ import unicode_literals
 
 import pdb
 from builtins import next
-
+import sys
+import os
 import numpy as np
 
 import torch
@@ -91,6 +92,41 @@ def test_BDHW_LSTM():
     b = mod(a)
     assert tuple(b.shape) == (17, 40, 48, 64)
 
+def test_BDHW_LSTM_to_BDH():
+    mod = layers.BDHW_LSTM_to_BDH(3, 13)
+    a = torch.ones((17, 3, 48, 64))
+    b = mod(a)
+    assert tuple(b.shape) == (17, 13, 48)
+
+def test_NoopSub():
+    mod = layers.NoopSub(sub=nn.Identity())
+    a = torch.ones((17, 11, 64, 64))
+    b = mod(a)
+    assert tuple(b.size()) == (17, 11, 64, 64)
+
+def test_KeepSize():
+    mod = layers.KeepSize(sub=nn.FractionalMaxPool2d((3, 3), output_ratio=(0.7, 0.9)))
+    a = torch.ones((17, 11, 64, 64))
+    b = mod(a)
+    assert tuple(b.size()) == (17, 11, 64, 64)
+
+def test_Additive():
+    mod = layers.Additive(
+        nn.Conv2d(11, 17, 3, padding=1),
+        nn.Conv2d(11, 17, 5, padding=2)
+    )
+    a = torch.ones((17, 11, 64, 64))
+    b = mod(a)
+    assert tuple(b.size()) == (17, 17, 64, 64)
+
+def test_Parallel():
+    mod = layers.Parallel(
+        nn.Conv2d(1, 4, 3, padding=(1, 1)),
+        nn.Conv2d(1, 7, 3, padding=(1, 1)))
+    a = torch.ones((17, 1, 64, 64))
+    b = mod(a)
+    assert tuple(b.size()) == (17, 11, 64, 64)
+
 def test_SimplePooling2d():
     mod = layers.SimplePooling2d([nn.Conv2d(1, 1, 3, padding=(1, 1))])
     a = torch.ones((17, 1, 64, 64))
@@ -105,16 +141,3 @@ def test_AcrossPooling2d():
     b = mod(a)
     assert tuple(b.size()) == (17, 8, 64, 64)
 
-def test_Parallel():
-    mod = layers.Parallel(
-        nn.Conv2d(1, 4, 3, padding=(1, 1)),
-        nn.Conv2d(1, 7, 3, padding=(1, 1)))
-    a = torch.ones((17, 1, 64, 64))
-    b = mod(a)
-    assert tuple(b.size()) == (17, 11, 64, 64)
-
-def test_BDHW_LSTM_to_BDH():
-    mod = layers.BDHW_LSTM_to_BDH(3, 13)
-    a = torch.ones((17, 3, 48, 64))
-    b = mod(a)
-    assert tuple(b.shape) == (17, 13, 48)
