@@ -395,25 +395,6 @@ class BDHW_LSTM_to_BDH(nn.Module):
         assert state.size() == (1, b*h, noutput), ((w, b*h, noutput), state.size())
         return reorder(state.view(b, h, noutput), "BHD", "BDH")
 
-### Common Layer Combinations
-
-def conv2d_block(d, r=3, mp=None, fmp=None, repeat=1):
-    """Generate a conv layer with batchnorm and optional maxpool."""
-    result = []
-    for i in range(repeat):
-        result += [
-            flex.Conv2d(d, r, padding=(r//2, r//2), stride=stride),
-            flex.BatchNorm2d(),
-            nn.ReLU()
-        ]    
-    result = conv2d(d, r, repeat=repeat)
-    if fmp is not None:
-        assert mp is None, (fmp, mp)
-        result += [nn.FractionalMaxPool2d(3, output_ratio=fmp)]
-    elif mp is not None:
-        result += [nn.MaxPool2d(mp)]
-    return result
-
 ### Wrap-Around Modules
 
 class NoopSub(nn.Module):

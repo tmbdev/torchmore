@@ -5,6 +5,21 @@ from torch import autograd, nn
 from torch.nn import functional as F
 from . import layers, flex
 
+def conv2d_block(d, r=3, mp=None, fmp=None, repeat=1, batchnorm=True, nonlin=nn.ReLU):
+    """Generate a conv layer with batchnorm and optional maxpool."""
+    result = []
+    for i in range(repeat):
+        result += [flex.Conv2d(d, r, padding=(r//2, r//2))]
+        if batchnorm:
+            result += [flex.BatchNorm2d()]
+        result += [nonlin()]
+    if fmp is not None:
+        assert mp is None, (fmp, mp)
+        result += [nn.FractionalMaxPool2d(3, output_ratio=fmp)]
+    elif mp is not None:
+        result += [nn.MaxPool2d(mp)]
+    return result
+
 class UnetLayer(nn.Module):
     """Resolution pyramid layer using convolutions and upscaling.
     """
@@ -61,7 +76,7 @@ def resnet_blocks(n, d, r=3):
 def make_unet(sizes, r=3, repeat=3, sub=None):
     if len(sizes)==1:
         if sub is None:
-            return nn.Sequential(*layers.conv2d_block(sizes[0], r, repeat=repeat))
+            return nn.Sequential(*conv2d_block(sizes[0], r, repeat=repeat))
         else:
             return UnetLayer(sizes[0], sub=sub)
     else:
