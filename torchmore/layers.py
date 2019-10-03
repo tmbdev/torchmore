@@ -45,7 +45,7 @@ def conform(*args, slop=None, dims=True):
     return tuple([arg[box] for arg in args])
 
 
-def reorder(x, old, new):
+def reorder(x, old, new, set_order=True):
     """Reorder dimensions according to strings.
 
     E.g., reorder(x, "BLD", "LBD")
@@ -54,8 +54,15 @@ def reorder(x, old, new):
     assert set(old)==set(new) and len(old)==len(new) and len(set(old))==len(old), (old, new)
     permutation = tuple([old.find(c) for c in new])
     assert len(old) == x.ndimension(), (old, x.size())
-    return x.permute(permutation).contiguous()
+    result = x.permute(permutation).contiguous()
+    if set_order:
+        result.order = new
+    return result
 
+def check_order(x, order):
+    if hasattr(x, "order"):
+        if x.order != order:
+            raise ValueError(f"expected order {order}, got {x.order}")
 
 class WeightedGrad(autograd.Function):
     """Reweight the gradient using the given weights."""
@@ -263,6 +270,14 @@ class Reorder(nn.Module):
     def __repr__(self):
         return 'Reorder("{}", "{}")'.format(self.old, self.new)
 
+class CheckOrder(nn.Module):
+    def __init__(self, order=None):
+        super().__init__()
+        self.order = order
+    def forward(self, x):
+        if self.order is not None:
+            check_order(x, self.order)
+        return x
 
 class Permute(nn.Module):
     """Permute the dimensions of the input tensor."""
