@@ -5,6 +5,17 @@ from torch import autograd, nn
 from torch.nn import functional as F
 from . import layers, flex
 
+def fc_block(sizes, batchnorm=True, nonlin=nn.ReLU, flatten=True):
+    assert len(sizes) >= 1, sizes
+    result = [nn.Flatten()]
+    for i, s in enumerate(sizes[:-1]):
+        result += [flex.Linear(s)]
+        if batchnorm:
+            result += [flex.BatchNorm()]
+        result += [nonlin()]
+    result += [flex.Linear(sizes[-1])]
+    return result
+
 def conv2d_block(d, r=3, mp=None, fmp=None, repeat=1, batchnorm=True, nonlin=nn.ReLU):
     """Generate a conv layer with batchnorm and optional maxpool."""
     result = []
