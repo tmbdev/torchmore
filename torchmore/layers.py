@@ -127,6 +127,7 @@ class Info(nn.Module):
         if self.count % self.every == 0:
             print(("Info", self.info, x.size(),
                   x.min().item(), x.max().item()))
+        self.count += 1
         return x
 
     def __repr__(self):
