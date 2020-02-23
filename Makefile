@@ -4,6 +4,7 @@ VENV=venv
 PYTHON3=$(VENV)/bin/python3
 PIPOPT=--no-cache-dir
 PIP=$(VENV)/bin/pip $(PIPOPT)
+BUCKET=gs://tmb-testreleases
 
 # run the unit tests in a virtual environment
 
@@ -25,16 +26,25 @@ $(VENV)/bin/activate: requirements.txt requirements.dev.txt
 # after a successful push, it will try to clone the repo into a docker container
 # and execute the tests
 
-dist: FORCE
-	rm -f dist/*
-	$(PYTHON3) setup.py sdist bdist_wheel
+dist: wheel FORCE
 	twine check dist/*
 	twine upload dist/*
 
-githubtests:
+wheel: FORCE
+	rm -f dist/*
+	$(PYTHON3) setup.py sdist bdist_wheel
+
+uploadwheel: wheel FORCE
+	gsutil cp dist/*.whl $(BUCKET)/$$(ls dist/*.whl | xargs basename | sed 's/-[0-9.]*-/-latest-/')
+	gsutil cp dist/*.tar.gz $(BUCKET)/$$(ls dist/*.tar.gz | xargs basename | sed 's/-[0-9.]*.tar.gz/-latest.tar.gz/')
+
+githubtests: FORCE
 	./helpers/dockertest git
 
-pypitests:
+packagetest: wheel FORCE
+	./helpers/dockertest package
+
+pypitests: FORCE
 	./helpers/dockertest pip
 
 # build the documentation

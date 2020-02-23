@@ -5,19 +5,30 @@
 # See the LICENSE file for licensing terms (TBD).
 #
 
-from __future__ import print_function
+import setuptools
 
-import glob
-import sys
-from distutils.core import setup  # , Extension, Command
+VERSION = "0.1.0"
 
-#scripts = glob.glob("wl-*[a-z]")
-
-setup(
-    name='torchmore',
-    version='v0.0',
+setuptools.setup(
     author="Thomas Breuel",
+    author_email="tmbdev+removeme@gmail.com",
     description="Useful additional layers for PyTorch.",
+    install_requires="simplejson braceexpand msgpack pyyaml numpy torch Pillow torchvision scipy".split(),
+    keywords="object store, client, deep learning",
+    license="MIT",
+    long_description=open("README.md").read(),
+    long_description_content_type="text/markdown",
+    name='torchmore',
     packages=["torchmore"],
+    python_requires=">=3.6",
     # scripts=scripts,
+    url="http://github.com/tmbdev/torchmore",
+    version=VERSION,
+    classifiers=[
+        "Development Status :: 3 - Alpha",
+        "License :: OSI Approved :: BSD License",
+        "Programming Language :: Python :: 3.6",
+        "Programming Language :: Python :: 3.7"
+    ],
 )
+
