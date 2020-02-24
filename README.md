@@ -7,13 +7,18 @@ for writing PyTorch models for image recognition, OCR, and other applications.
 # Flex
 
 
-The `flex` library performs simple size inference. It does so by wrapping up individual layers in a wrapper that instantiates the layer only when dimensional data is available. The wrappers can be removed later and the model turned into one with only completely standard modules. That looks like this:
+The `flex` library performs simple size inference. It does so by wrapping
+up individual layers in a wrapper that instantiates the layer only when
+dimensional data is available. The wrappers can be removed later and
+the model turned into one with only completely standard modules. That
+looks like this:
 
+```Python
     from torch import nn
     from torchmore import layers, flex
 
     noutput = 10
-    
+
     model = nn.Sequential(
         layers.Input("BDHW"),
         flex.Conv2d(100),
@@ -28,10 +33,9 @@ The `flex` library performs simple size inference. It does so by wrapping up ind
         nn.ReLU(),
         flex.Full(noutput)
     )
-  
+
     flex.shape_inference(model, (1, 1, 28, 28))
-
-
+```
 
 The `flex` library provides wrappers for the following layers right now:
 
@@ -44,9 +48,11 @@ The `flex` library provides wrappers for the following layers right now:
 
 You can use `Flex` directly. The following two layers are identical:
 
+```Python
     layer1 = flex.Conv2d(100)
     layer2 = flex.Flex(lambda x: nn.Conv2d(x.size(1), 100))
-    
+```
+
 That is, you can easily turn any layer into a `Flex` layer that way even if it isn't in the library.
 
 
@@ -59,7 +65,9 @@ The `Input` layer is a handy little layer that reorders input dimensions, checks
 
 For example, consider the following `Input` layer:
 
-        layers.Input("BHWD", "BDHW", range=(0, 1), sizes=[None, 1, None, None]),
+```Python
+    layers.Input("BHWD", "BDHW", range=(0, 1), sizes=[None, 1, None, None]),
+```
 
 This says:
 
@@ -70,8 +78,10 @@ This says:
 
 ## The `.order` Attribute
 
-Note that if the input tensor has a `.order` attribute, that will be used to reorder the input dimensions into the desired dimensions. This allows the model to accept inputs in multiple orders. Consider
+Note that if the input tensor has a `.order` attribute, that will be used to reorder the input
+dimensions into the desired dimensions. This allows the model to accept inputs in multiple orders. Consider
 
+```Python
     model = nn.Sequential(
         layers.Input("BHWD", "BDHW", range=(0, 1), sizes=[None, 1, None, None]),
         ...
@@ -79,10 +89,9 @@ Note that if the input tensor has a `.order` attribute, that will be used to reo
     a = torch.rand((1, 100, 150, 1))
     b = a.permute(0, 3, 1, 2)
     b.order = "BDHW"
-    
+
     assert model(a) == model(b)
-
-
+```
 
 # layers.Reorder
 
@@ -93,18 +102,16 @@ The `Reorder` layer reorders axes just like `Tensor.permute` does, but it does s
         layers.Reorder("LBD", "BDL"),
         flex.Conv1d(noutput, 1),
         layers.Reorder("BDL", "BLD")
-        
-The letters themselves are arbitrary, but common choices are "BDLHW". This is likely clearer than a sequence of permutations.
 
+The letters themselves are arbitrary, but common choices are "BDLHW". This is likely clearer than a sequence of permutations.
 
 ## layers.Fun
 
 For module-based networks, it's convenient to add functions. The `Fun` layer permits that, as in:
 
         layers.Fun("lambda x: x.permute(2, 0, 1)")
-        
-Note that since functions are specified as strings, this can be pickled.
 
+Note that since functions are specified as strings, this can be pickled.
 
 # LSTM layers
 
@@ -112,8 +119,6 @@ Note that since functions are specified as strings, this can be pickled.
 - `layers.BDL_LSTM`: an LSTM variant that is a drop-in replacement for a `Conv1d` layer
 - `layers.BDHW_LSTM`: an MDLSTM variant that is a drop-in replacement for a `Conv2d` layer
 - `layers.BDHW_LSTM_to_BDH`: a rowwise LSTM, reducing dimension by 1
-
-
 
 # Other Layers
 
@@ -128,8 +133,3 @@ These may be occasionally useful:
 - `layers.Parallel`: run two modules in parallel and stack the results
 - `layers.SimplePooling2d`: wrapped up max pooling/unpooling
 - `layers.AcrossPooling2d`: wrapped up max pooling/unpooling with convolution
-
-
-```python
-
-```
