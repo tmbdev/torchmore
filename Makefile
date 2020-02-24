@@ -9,7 +9,7 @@ BUCKET=gs://tmb-testreleases
 # run the unit tests in a virtual environment
 
 tests: venv FORCE
-	rm -f webdataset.yaml webdataset.yml # config files that interfere with tests
+	rm -f torchmore.yaml torchmore.yml # config files that interfere with tests
 	. ./venv/bin/activate; python3 -m pytest -v -x
 
 # build the virtual environment for development and testing
@@ -61,9 +61,12 @@ docs: FORCE
 # remove temporary build constructs
 
 clean: FORCE
-	rm -rf venv build dist
-	rm -f webdataset.yaml webdataset.yml # config files that interfere with tests
+	rm -rf build dist
+	rm -f torchmore.yaml torchmore.yml # config files that interfere with tests
 	rm -rf __pycache__ */__pycache__ *.log *.egg-info .pytest_cache .tox
+
+allclean: FORCE
+	rm -rf venv
 
 # set the keyring password for pypi uploads
 
