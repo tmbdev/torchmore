@@ -1,4 +1,4 @@
-site_name: webdataset
+site_name: torchmore
 nav:
     - Home: index.md
     - Module Docs: pydoc.md
