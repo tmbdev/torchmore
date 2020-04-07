@@ -31,9 +31,17 @@ def conv2d_block(d, r=3, mp=None, fmp=None, repeat=1, batchnorm=True, nonlin=nn.
         result += [nn.MaxPool2d(mp)]
     return result
 
+def pad_sequence(x, desired_size):
+    size_diff = [size - x.size(i) for i, size in enumerate(desired_size)][2:]  # Only for H, and W
+    pl, pr = size_diff[1] // 2 + size_diff[1] % 2, size_diff[1] // 2
+    pt, pb = size_diff[0] // 2 + size_diff[0] % 2, size_diff[0] // 2
+    padding = [pl, pr, pt, pb]
+    assert all([pad >= 0 and pad <= 2 for pad in padding]), f"Required padding is too large: {padding}"
+    x = F.pad(x, padding, mode='reflect')  # Pad values to match the size
+    return x
+
 class UnetLayer(nn.Module):
-    """Resolution pyramid layer using convolutions and upscaling.
-    """
+    """Resolution pyramid layer using convolutions and upscaling."""
     def __init__(self, d, r=3, sub=None, post=None):
         super().__init__()
         self.down = nn.MaxPool2d(2)
@@ -42,12 +50,14 @@ class UnetLayer(nn.Module):
             sub = nn.Sequential(*sub)
         self.sub = sub
         self.post = post
+    
     def forward(self, x):
         b, d, h, w = x.size()
-        assert h%2==0 and w%2==0, x.size()
+        # assert h%2==0 and w%2==0, x.size()
         lo = self.down(x)
         lo1 = self.sub(lo)
         hi = self.up(lo1)
+        hi = pad_sequence(hi, x.size())
         result = torch.cat([x, hi], dim=1)
         if self.post is not None:
             result = self.post(result)
