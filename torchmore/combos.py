@@ -15,6 +15,8 @@ def fc_block(sizes, batchnorm=True, nonlin=nn.ReLU, flatten=True):
     return result
 
 
+# common multi-layer convolution block (e.g., used in VGG models)
+
 def conv2d_block(d, r=3, mp=None, fmp=None, repeat=1, batchnorm=True, nonlin=nn.ReLU):
     """Generate a conv layer with batchnorm and optional maxpool."""
     result = []
@@ -31,30 +33,7 @@ def conv2d_block(d, r=3, mp=None, fmp=None, repeat=1, batchnorm=True, nonlin=nn.
     return result
 
 
-class UnetLayer(nn.Module):
-    """Resolution pyramid layer using convolutions and upscaling.
-    """
-
-    def __init__(self, d, r=3, sub=None, post=None):
-        super().__init__()
-        self.down = nn.MaxPool2d(2)
-        self.up = flex.ConvTranspose2d(d, r, stride=2, padding=1, output_padding=1)
-        if isinstance(sub, list):
-            sub = nn.Sequential(*sub)
-        self.sub = sub
-        self.post = post
-
-    def forward(self, x):
-        b, d, h, w = x.size()
-        assert h % 2 == 0 and w % 2 == 0, x.size()
-        lo = self.down(x)
-        lo1 = self.sub(lo)
-        hi = self.up(lo1)
-        result = torch.cat([x, hi], dim=1)
-        if self.post is not None:
-            result = self.post(result)
-        return result
-
+# Resnet Architecture
 
 def ResnetBottleneck(d, b, r=3, identity=None, post=None):
     return layers.Additive(
@@ -90,13 +69,42 @@ def resnet_blocks(n, d, r=3):
     return [ResnetBlock(d, r) for _ in range(n)]
 
 
-def make_unet(sizes, r=3, repeat=3, sub=None):
+# Unet Architecture
+
+class UnetLayer(nn.Module):
+    """Resolution pyramid layer using convolutions and upscaling.
+    """
+
+    def __init__(self, d, sub=None, post=None):
+        super().__init__()
+        self.conv = flex.Conv2d(d, 3, padding=1)
+        self.down = nn.MaxPool2d(2)
+        self.up = flex.ConvTranspose2d(d, 3, stride=2, padding=1, output_padding=1)
+        if isinstance(sub, list):
+            sub = nn.Sequential(*sub)
+        self.sub = sub
+        self.post = post
+
+    def forward(self, x):
+        b, d, h, w = x.size()
+        assert h % 2 == 0 and w % 2 == 0, x.size()
+        xc = self.conv(x)
+        lo = self.down(xc)
+        lo1 = self.sub(lo)
+        hi = self.up(lo1)
+        result = torch.cat([xc, hi], dim=1)
+        if self.post is not None:
+            result = self.post(result)
+        return result
+
+
+def make_unet(sizes, sub=None):
     if len(sizes) == 1:
         if sub is None:
-            return nn.Sequential(*conv2d_block(sizes[0], r, repeat=repeat))
+            return nn.Sequential(*conv2d_block(sizes[0]))
         else:
             return UnetLayer(sizes[0], sub=sub)
     else:
         return UnetLayer(
-            sizes[0], sub=make_unet(sizes[1:], r=r, repeat=repeat, sub=sub)
+            sizes[0], sub=make_unet(sizes[1:], sub=sub)
         )
