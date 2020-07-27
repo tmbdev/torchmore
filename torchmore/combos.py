@@ -17,6 +17,7 @@ def fc_block(sizes, batchnorm=True, nonlin=nn.ReLU, flatten=True):
 
 # common multi-layer convolution block (e.g., used in VGG models)
 
+
 def conv2d_block(d, r=3, mp=None, fmp=None, repeat=1, batchnorm=True, nonlin=nn.ReLU):
     """Generate a conv layer with batchnorm and optional maxpool."""
     result = []
@@ -35,6 +36,7 @@ def conv2d_block(d, r=3, mp=None, fmp=None, repeat=1, batchnorm=True, nonlin=nn.
 
 # Resnet Architecture
 
+
 def ResnetBottleneck(d, b, r=3, identity=None, post=None):
     return layers.Additive(
         identity or nn.Identity(),
@@ -52,6 +54,7 @@ def ResnetBottleneck(d, b, r=3, identity=None, post=None):
 
 
 def ResnetBlock(d, r=3, identity=None, post=None):
+    """Block for Resnet."""
     return layers.Additive(
         identity or nn.Identity(),
         nn.Sequential(
@@ -70,6 +73,7 @@ def resnet_blocks(n, d, r=3):
 
 
 # Unet Architecture
+
 
 class UnetLayer(nn.Module):
     """Resolution pyramid layer using convolutions and upscaling.
@@ -105,6 +109,4 @@ def make_unet(sizes, sub=None):
         else:
             return UnetLayer(sizes[0], sub=sub)
     else:
-        return UnetLayer(
-            sizes[0], sub=make_unet(sizes[1:], sub=sub)
-        )
+        return UnetLayer(sizes[0], sub=make_unet(sizes[1:], sub=sub))

@@ -10,24 +10,26 @@ import torch
 from torch import autograd, nn
 from torch.nn import functional as F
 
+
 def deprecated(f):
     def g(*args, **kw):
         raise Exception("deprecated")
+
     return g
 
 
 def conform1(a, *args, slop=None, dims=True):
     """Trim the remaining args down to the size of the first."""
-    if dims is True: dims = arange(a.ndimension())
+    if dims is True:
+        dims = np.arange(a.ndimension())
     if slop is not None:
         # FIXME convert to torch
         target = np.array(a.shape)
         sizes = np.array([a.shape for a in args])
-        deltas = np.amax(np.abs(sizes-target[np.newaxis,:]), 0)
+        deltas = np.amax(np.abs(sizes - target[np.newaxis, :]), 0)
         for i in dims:
             assert deltas[i] <= slop, (sizes, deltas)
-    box = tuple(slice(j) if i in dims else slice(None)
-                for i,j in enumerate(a.shape))
+    box = tuple(slice(j) if i in dims else slice(None) for i, j in enumerate(a.shape))
     return tuple([a[box]] + [arg[box] for arg in args])
 
 
@@ -36,12 +38,11 @@ def conform(*args, slop=None, dims=True):
     if slop is not None:
         # FIXME convert to torch
         sizes = np.array([a.shape for a in args])
-        deltas = np.amax(sizes, 0)-np.amin(sizes, 0)
+        deltas = np.amax(sizes, 0) - np.amin(sizes, 0)
         for i in dims:
             assert deltas[i] <= slop, (sizes, deltas)
     box = map(min, zip(*[a.shape for a in args]))
-    box = tuple(slice(j) if i in dims else slice(None)
-                for i,j in enumerate(box))
+    box = tuple(slice(j) if i in dims else slice(None) for i, j in enumerate(box))
     return tuple([arg[box] for arg in args])
 
 
@@ -51,7 +52,9 @@ def reorder(x, old, new, set_order=True):
     E.g., reorder(x, "BLD", "LBD")
     """
     assert isinstance(old, str) and isinstance(new, str)
-    assert set(old)==set(new) and len(old)==len(new) and len(set(old))==len(old), (old, new)
+    assert (
+        set(old) == set(new) and len(old) == len(new) and len(set(old)) == len(old)
+    ), (old, new)
     permutation = tuple([old.find(c) for c in new])
     assert len(old) == x.ndimension(), (old, x.size())
     result = x.permute(permutation).contiguous()
@@ -59,10 +62,12 @@ def reorder(x, old, new, set_order=True):
         result.order = new
     return result
 
+
 def check_order(x, order):
     if hasattr(x, "order"):
         if x.order != order:
             raise ValueError(f"expected order {order}, got {x.order}")
+
 
 class WeightedGrad(autograd.Function):
     """Reweight the gradient using the given weights."""
@@ -73,6 +78,7 @@ class WeightedGrad(autograd.Function):
 
     def backward(self, grad_output):
         return grad_output * self.weights, None
+
 
 def weighted_grad(x, y):
     return WeightedGrad()(x, y)
@@ -97,6 +103,7 @@ class Fun(nn.Module):
     def __repr__(self):
         return "Fun {} {}".format(self.info, self.f_str)
 
+
 class Fun_(nn.Module):
     """Turn an arbitrary function into a layer."""
 
@@ -113,7 +120,6 @@ class Fun_(nn.Module):
         return "Fun {} {}".format(self.info, self.f)
 
 
-
 class Info(nn.Module):
     """Output information for the given input."""
 
@@ -125,8 +131,7 @@ class Info(nn.Module):
 
     def forward(self, x):
         if self.count % self.every == 0:
-            print(("Info", self.info, x.size(),
-                  x.min().item(), x.max().item()))
+            print(("Info", self.info, x.size(), x.min().item(), x.max().item()))
         self.count += 1
         return x
 
@@ -149,18 +154,21 @@ class CheckSizes(nn.Module):
     def forward(self, x):
         for (i, actual), (lo, hi) in zip(enumerate(tuple(x.size())), self.limits):
             if lo >= 0 and actual < lo:
-                raise Exception("{} ({}): index {} too low ({} not >= {})"
-                                .format(self.name, self.order,
-                                        i, actual, lo))
+                raise Exception(
+                    "{} ({}): index {} too low ({} not >= {})".format(
+                        self.name, self.order, i, actual, lo
+                    )
+                )
             if hi >= 0 and actual > hi:
-                raise Exception("{} ({}): index {} too high ({} not <= {})"
-                                .format(self.name, self.order,
-                                        i, actual, hi))
+                raise Exception(
+                    "{} ({}): index {} too high ({} not <= {})".format(
+                        self.name, self.order, i, actual, hi
+                    )
+                )
         return x
 
     def __repr__(self):
-        return "CheckSizes({})".format(
-            ", ".join([repr(x) for x in self.limits]))
+        return "CheckSizes({})".format(", ".join([repr(x) for x in self.limits]))
 
 
 class Device(nn.Module):
@@ -185,21 +193,26 @@ class CheckRange(nn.Module):
         self.valid = (lo, hi)
 
     def forward(self, x):
-        assert x.min().item() >= self.valid[0], \
-            (self.name, data(x).min(), self.valid)
-        assert x.max().item() <= self.valid[1], \
-            (self.name, data(x).max(), self.valid)
+        assert x.min().item() >= self.valid[0], (self.name, x.min().item(), self.valid)
+        assert x.max().item() <= self.valid[1], (self.name, x.max().item(), self.valid)
         return x
 
     def __repr__(self):
-        return "CheckRange({}, {}, name=\"{}\")".format(
-                           self.valid[0],
-                           self.valid[1],
-                           self.name)
+        return 'CheckRange({}, {}, name="{}")'.format(
+            self.valid[0], self.valid[1], self.name
+        )
 
 
 class Input(nn.Module):
-    def __init__(self, assume, reorder=None, range=None, sizes=None, device=True, dtype=torch.float32):
+    def __init__(
+        self,
+        assume,
+        reorder=None,
+        range=None,
+        sizes=None,
+        device=True,
+        dtype=torch.float32,
+    ):
         """Declares the input for a network.
 
         :param order: order of axes (e.g., BDL, BHWD, etc.)
@@ -216,6 +229,7 @@ class Input(nn.Module):
         self.device = device
         self.param = torch.nn.Parameter(torch.zeros(1))
         self.sizes = sizes
+
     def forward(self, x):
         if self.range is not None:
             lo = x.min().item()
@@ -225,7 +239,7 @@ class Input(nn.Module):
             if hasattr(x, "order"):
                 x = reorder(x, x.order, self.reorder)
             else:
-                if self.assume is True or self.assume==self.reorder:
+                if self.assume is True or self.assume == self.reorder:
                     pass
                 elif self.assume is None:
                     raise ValueError("input is required to have a .order property")
@@ -247,10 +261,13 @@ class Input(nn.Module):
         else:
             x = x.type(self.dtype)
         return x
+
     def __repr__(self):
         autodev = self.param.device if self.device else None
-        return f"Input({self.assume}->{self.reorder} " + \
-            f"{self.dtype} {self.range} {autodev} {self.sizes})"
+        return (
+            f"Input({self.assume}->{self.reorder} "
+            + f"{self.dtype} {self.range} {autodev} {self.sizes})"
+        )
 
 
 class Reorder(nn.Module):
@@ -271,14 +288,17 @@ class Reorder(nn.Module):
     def __repr__(self):
         return 'Reorder("{}", "{}")'.format(self.old, self.new)
 
+
 class CheckOrder(nn.Module):
     def __init__(self, order=None):
         super().__init__()
         self.order = order
+
     def forward(self, x):
         if self.order is not None:
             check_order(x, self.order)
         return x
+
 
 class Permute(nn.Module):
     """Permute the dimensions of the input tensor."""
@@ -318,12 +338,12 @@ class Reshape(nn.Module):
                 newshape.append(total)
             else:
                 raise ValueError(
-                    "shape spec must be either int or tuple, got {}".format(s))
+                    "shape spec must be either int or tuple, got {}".format(s)
+                )
         return x.view(*newshape)
 
     def __repr__(self):
-        return "Reshape({})".format(
-            ", ".join([repr(x) for x in self.shape]))
+        return "Reshape({})".format(", ".join([repr(x) for x in self.shape]))
 
 
 class Viewer(nn.Module):
@@ -337,17 +357,19 @@ class Viewer(nn.Module):
         return x.view(*self.shape)
 
     def __repr__(self):
-        return "Viewer({})".format(
-            ", ".join([repr(x) for x in self.shape]))
+        return "Viewer({})".format(", ".join([repr(x) for x in self.shape]))
+
 
 class LSTM(nn.Module):
     """LSTM wrapper that discards the state."""
+
     def __init__(self, *args, **kw):
         super().__init__()
         self.lstm = nn.LSTM(*args, **kw)
 
     def forward(self, *args, **kw):
         return self.lstm(*args, **kw)[0]
+
 
 class BDL_LSTM(nn.Module):
     """A simple bidirectional LSTM.
@@ -356,12 +378,20 @@ class BDL_LSTM(nn.Module):
     be consistent with 1D convolutions.
     """
 
-    def __init__(self, ninput=None, noutput=None, num_layers=1, bidirectional=False, batch_first=True):
+    def __init__(
+        self,
+        ninput=None,
+        noutput=None,
+        num_layers=1,
+        bidirectional=False,
+        batch_first=True,
+    ):
         super().__init__()
         assert ninput is not None
         assert noutput is not None
-        self.lstm = nn.LSTM(ninput, noutput, num_layers=num_layers,
-                            bidirectional=bidirectional)
+        self.lstm = nn.LSTM(
+            ninput, noutput, num_layers=num_layers, bidirectional=bidirectional
+        )
 
     def forward(self, seq, volatile=False, verbose=False):
         seq = reorder(seq, "BDL", "LBD")
@@ -375,28 +405,31 @@ class BDHW_LSTM(nn.Module):
     Input order as for 2D convolutions.
     """
 
-    def __init__(self, ninput=None, noutput=None, nhidden=None, 
-                 num_layers=1, bidirectional=True):
+    def __init__(
+        self, ninput=None, noutput=None, nhidden=None, num_layers=1, bidirectional=True
+    ):
         super().__init__()
         nhidden = nhidden or noutput
-        ndir = bidirectional+1
-        self.hlstm = nn.LSTM(ninput, nhidden, num_layers=num_layers,
-                             bidirectional=bidirectional)
-        self.vlstm = nn.LSTM(nhidden*ndir, noutput, num_layers=num_layers,
-                             bidirectional=bidirectional)
+        ndir = bidirectional + 1
+        self.hlstm = nn.LSTM(
+            ninput, nhidden, num_layers=num_layers, bidirectional=bidirectional
+        )
+        self.vlstm = nn.LSTM(
+            nhidden * ndir, noutput, num_layers=num_layers, bidirectional=bidirectional
+        )
 
     def forward(self, img):
         b, d, h, w = img.shape
-        hin = reorder(img, "BDHW", "WHBD").view(w, h*b, d)
+        hin = reorder(img, "BDHW", "WHBD").view(w, h * b, d)
         hout, _ = self.hlstm(hin)
-        vin = reorder(hout.view(w, h, b, -1), "WHBD", "HWBD").view(h, w*b, -1)
+        vin = reorder(hout.view(w, h, b, -1), "WHBD", "HWBD").view(h, w * b, -1)
         vout, _ = self.vlstm(vin)
         return reorder(vout.view(h, w, b, -1), "HWBD", "BDHW")
 
 
-
 class BDHW_LSTM_to_BDH(nn.Module):
     """An LSTM that summarizes 2D down to 1D along the last dim."""
+
     def __init__(self, ninput=None, noutput=None):
         super().__init__()
         assert ninput is not None
@@ -406,24 +439,30 @@ class BDHW_LSTM_to_BDH(nn.Module):
     def forward(self, img, volatile=False):
         noutput = self.lstm.hidden_size
         b, d, h, w = img.size()
-        seq = reorder(img, "BDHW", "WBHD").view(w, b*h, d)
+        seq = reorder(img, "BDHW", "WBHD").view(w, b * h, d)
         out, (_, state) = self.lstm(seq)
-        assert state.size() == (1, b*h, noutput), ((w, b*h, noutput), state.size())
+        assert state.size() == (1, b * h, noutput), ((w, b * h, noutput), state.size())
         return reorder(state.view(b, h, noutput), "BHD", "BDH")
 
-### Wrap-Around Modules
+
+# Wrap-Around Modules
+
 
 class NoopSub(nn.Module):
     """Noop wrap-around module (for testing/exploration)."""
+
     def __init__(self, *args, sub=None, **kw):
         super().__init__()
         self.sub = sub
+
     def forward(self, x):
         return self.sub(x)
+
 
 class KeepSize(nn.Module):
     """Run layers, then upsample back to the original.
     """
+
     def __init__(self, mode="bilinear", sub=None, dims=None):
         super().__init__()
         if isinstance(sub, list):
@@ -431,6 +470,7 @@ class KeepSize(nn.Module):
         self.sub = sub
         self.mode = mode
         self.dims = dims
+
     def forward(self, x):
         y = self.sub(x)
         if self.dims is None:
@@ -441,8 +481,17 @@ class KeepSize(nn.Module):
         try:
             return F.interpolate(y, size=size, mode=self.mode, **kw)
         except Exception as exn:
-            print("error:", x.size(), y.size(), self.dims, size, self.mode, file=sys.stderr)
+            print(
+                "error:",
+                x.size(),
+                y.size(),
+                self.dims,
+                size,
+                self.mode,
+                file=sys.stderr,
+            )
             raise exn
+
 
 class Additive(nn.Module):
     """Additive wrap-around module for Resnet-style architectures.
@@ -450,10 +499,12 @@ class Additive(nn.Module):
     :args: modules whose output is to be added
     :post: module to execute after everything has been added
     """
+
     def __init__(self, *args, post=None):
         super().__init__()
         self.sub = nn.ModuleList(args)
         self.post = None
+
     def forward(self, x):
         y = self.sub[0](x)
         for f in self.sub[1:]:
@@ -462,8 +513,10 @@ class Additive(nn.Module):
             y = self.post(y)
         return y
 
+
 class Parallel(nn.Module):
     """Run modules in parallel and concatenate the results."""
+
     def __init__(self, *args, dim=1):
         super().__init__()
         self.args = args
@@ -495,7 +548,7 @@ class SimplePooling2d(nn.Module):
         return self.unpool(z, indices)
 
     def __repr__(self):
-        return "Pooling2d(\n"+repr(self.sub)+"\n)"
+        return "Pooling2d(\n" + repr(self.sub) + "\n)"
 
 
 class AcrossPooling2d(nn.Module):
@@ -516,5 +569,3 @@ class AcrossPooling2d(nn.Module):
         across = self.across(x)
         up, across = conform(up, across, slop=2, dims=[0, 2, 3])
         return torch.cat([across, up], dim=1)
-
-
