@@ -569,3 +569,21 @@ class AcrossPooling2d(nn.Module):
         across = self.across(x)
         up, across = conform(up, across, slop=2, dims=[0, 2, 3])
         return torch.cat([across, up], dim=1)
+
+
+class ModPad(nn.Module):
+    def __init__(self, mod=8):
+        super().__init__()
+        self.mod = mod
+
+    def forward(self, a):
+        mod = self.mod
+        bs, d, h, w = a.shape
+        nh = ((h + mod - 1) // mod) * mod
+        nw = ((w + mod - 1) // mod) * mod
+        result = nn.functional.pad(a, (0, nw - w, 0, nh - h))
+        # print(a.shape, result.shape, file=sys.stderr)
+        nbs, nd, nh, nw = result.shape
+        assert nh % mod == 0 and nw % mod == 0
+        assert nbs == bs and nd == d and nh >= h and nw >= w
+        return result
