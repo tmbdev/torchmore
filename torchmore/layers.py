@@ -250,10 +250,12 @@ class Input(nn.Module):
                 if size is None:
                     continue
                 elif isinstance(size, int):
-                    assert x.size(i) == size, (i, x.size(i))
+                    assert x.size(i) == size, \
+                            f"Input dim {i}: expected {size}, got {x.size(i)}"
                 elif isinstance(size, (list, tuple)):
                     lo, hi = size
-                    assert x.size(i) >= lo and x.size(i) <= hi, (i, x.size(i), (lo, hi))
+                    assert x.size(i) >= lo and x.size(i) <= hi, \
+                            f"Input dim {i}: expected {(lo, hi)}, got {x.size(i)}"
                 else:
                     raise ValueError("bad size spec")
         if self.device is True:
