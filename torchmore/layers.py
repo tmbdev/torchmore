@@ -246,16 +246,18 @@ class Input(nn.Module):
                 else:
                     x = reorder(x, self.assume, self.reorder)
         if self.sizes is not None:
+            assert len(self.sizes) == x.ndim, \
+                    f"Input expects tensor of rank {len(self.sizes)} got {x.ndim}"
             for i, size in enumerate(self.sizes):
                 if size is None:
                     continue
                 elif isinstance(size, int):
                     assert x.size(i) == size, \
-                        f"Input dim {i}: expected {size}, got {x.size(i)}"
+                        f"Input dim {i}: expected {size}, got {x.size(i)} ({x.shape})"
                 elif isinstance(size, (list, tuple)):
                     lo, hi = size
                     assert x.size(i) >= lo and x.size(i) <= hi, \
-                        f"Input dim {i}: expected {(lo, hi)}, got {x.size(i)}"
+                        f"Input dim {i}: expected {(lo, hi)}, got {x.size(i)} ({x.shape})"
                 else:
                     raise ValueError("bad size spec")
         if self.device is True:
