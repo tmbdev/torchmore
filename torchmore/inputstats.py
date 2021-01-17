@@ -36,19 +36,14 @@ def check_sigma(stats, x, sigmas=4):
 class InputStats(nn.Module):
     def __init__(self, name="InputStats", error=False):
         super().__init__()
+        self.train()
         self.name = name
         self.error = error
-        self.train()
-        self.dim_stats = torch.vstack([empty_stats() for _ in range(8)])
-        self.min_stats = empty_stats()
-        self.max_stats = empty_stats()
-        self.mean_stats = empty_stats()
-        self.std_stats = empty_stats()
-        # self.register_buffer("dim", self.dim_stats)
-        # self.register_buffer("min", self.min_stats)
-        # self.register_buffer("max", self.max_stats)
-        # self.register_buffer("mean", self.mean_stats)
-        # self.register_buffer("std", self.std_stats)
+        self.register_buffer("dim_stats", torch.vstack([empty_stats() for _ in range(8)]))
+        self.register_buffer("min_stats", empty_stats())
+        self.register_buffer("max_stats", empty_stats())
+        self.register_buffer("mean_stats", empty_stats())
+        self.register_buffer("std_stats", empty_stats())
 
     def train(self, mode=True):
         if mode:

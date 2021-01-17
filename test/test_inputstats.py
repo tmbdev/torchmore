@@ -44,10 +44,14 @@ def test_InputStats2(tmpdir):
     fname = tmpdir.join("test.pth")
     print(mod)
     with open(fname, "wb") as stream:
-        torch.save(mod, stream)
+        state = mod.state_dict()
+        print("[[[", state, "]]]")
+        torch.save(state, stream)
+    mod2 = inputstats.InputStats()
     with open(fname, "rb") as stream:
-        mod2 = torch.load(stream)
+        state = torch.load(stream)
+        mod2.load_state_dict(state)
+    print(state)
     print(mod2)
     assert len(mod2) == 100
-    assert "mystats" in str(mod2)
     assert "4.0,4.0" in str(mod2)
