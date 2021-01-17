@@ -666,6 +666,11 @@ class StatsLayer(nn.Module):
             self.max_stats = empty_stats()
             self.mean_stats = empty_stats()
             self.std_stats = empty_stats()
+            self.register_buffer("dim", self.dim_stats)
+            self.register_buffer("min", self.min_stats)
+            self.register_buffer("max", self.max_stats)
+            self.register_buffer("mean", self.mean_stats)
+            self.register_buffer("std", self.std_stats)
         for i, s in enumerate(a.shape):
             self.value(self.dim_stats[i], s, f"dim({i})")
         self.value(self.min_stats, a.detach().min().cpu().item(), "min value")
