@@ -176,3 +176,23 @@ def test_StatsLayer():
         mod.forward(torch.rand([3, 4, 5]) + 2.0)
     with pytest.raises(ValueError):
         mod.forward(torch.rand([3, 4, 7]))
+
+
+def test_StatsLayer2(tmpdir):
+    mod = layers.StatsLayer(name="mystats", error=True)
+    for i in range(100):
+        a = torch.rand([3, 4, 5])
+        mod.forward(a)
+    assert len(mod) == 100
+    assert "mystats" in str(mod)
+    assert "4.0,4.0" in str(mod)
+    fname = tmpdir.join("test.pth")
+    print(mod)
+    with open(fname, "wb") as stream:
+        torch.save(mod, stream)
+    with open(fname, "rb") as stream:
+        mod2 = torch.load(stream)
+    print(mod2)
+    assert len(mod2) == 100
+    assert "mystats" in str(mod2)
+    assert "4.0,4.0" in str(mod2)
