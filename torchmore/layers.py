@@ -580,6 +580,12 @@ class ModPad(nn.Module):
         super().__init__()
         self.mod = mod
 
+    def __str__(self):
+        return f"ModPad({self.mod})"
+
+    def __repr__(self):
+        return f"ModPad({self.mod})"
+
     def forward(self, a):
         mod = self.mod
         bs, d, h, w = a.shape
@@ -591,4 +597,3 @@ class ModPad(nn.Module):
         assert nh % mod == 0 and nw % mod == 0
         assert nbs == bs and nd == d and nh >= h and nw >= w
         return result
-

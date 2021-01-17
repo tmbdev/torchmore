@@ -123,13 +123,12 @@ def test_KeepSize():
     assert tuple(b.size()) == (17, 11, 64, 64)
 
 
-def test_Additive():
-    mod = layers.Additive(
-        nn.Conv2d(11, 17, 3, padding=1), nn.Conv2d(11, 17, 5, padding=2)
-    )
+def test_ModPad():
+    mod = layers.ModPad(17)
+    print(mod)
     a = torch.ones((17, 11, 64, 64))
     b = mod(a)
-    assert tuple(b.size()) == (17, 17, 64, 64)
+    assert tuple(b.size()) == (17, 11, 68, 68)
 
 
 def test_Parallel():
