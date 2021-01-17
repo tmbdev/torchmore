@@ -682,7 +682,7 @@ class StatsLayer(nn.Module):
     def __str__(self):
         result = f"<{self.name}"
         if self.dim_stats is not None and len(self) > 0:
-            result += f" (n={self.min_stats[2]})"
+            result += f" (n={len(self)})"
             result += " dims"
             for i in range(len(self.dim_stats)):
                 result += f" [{self.dim_stats[i][0]},{self.dim_stats[i][1]}]"
