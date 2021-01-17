@@ -36,14 +36,19 @@ def check_sigma(stats, x, sigmas=4):
 class InputStats(nn.Module):
     def __init__(self, name="InputStats", error=False):
         super().__init__()
-        self.dim_stats = None
-        self.min_stats = None
-        self.max_stats = None
-        self.mean_stats = None
-        self.std_stats = None
         self.name = name
         self.error = error
         self.train()
+        self.dim_stats = torch.vstack([empty_stats() for _ in range(8)])
+        self.min_stats = empty_stats()
+        self.max_stats = empty_stats()
+        self.mean_stats = empty_stats()
+        self.std_stats = empty_stats()
+        # self.register_buffer("dim", self.dim_stats)
+        # self.register_buffer("min", self.min_stats)
+        # self.register_buffer("max", self.max_stats)
+        # self.register_buffer("mean", self.mean_stats)
+        # self.register_buffer("std", self.std_stats)
 
     def train(self, mode=True):
         if mode:
@@ -76,19 +81,8 @@ class InputStats(nn.Module):
                 self.alert(f"{message}: {x} is outside 4 sigma of input value")
 
     def forward(self, a):
-        if self.dim_stats is None:
-            self.dim_stats = torch.vstack([empty_stats() for _ in range(a.ndim)])
-            self.min_stats = empty_stats()
-            self.max_stats = empty_stats()
-            self.mean_stats = empty_stats()
-            self.std_stats = empty_stats()
-            self.register_buffer("dim", self.dim_stats)
-            self.register_buffer("min", self.min_stats)
-            self.register_buffer("max", self.max_stats)
-            self.register_buffer("mean", self.mean_stats)
-            self.register_buffer("std", self.std_stats)
-        for i, s in enumerate(a.shape):
-            self.value(self.dim_stats[i], s, f"dim({i})")
+        for i in range(min(a.ndim, len(self.dim_stats))):
+            self.value(self.dim_stats[i], a.shape[i], f"dim({i})")
         self.value(self.min_stats, a.detach().min().cpu().item(), "min value")
         self.value(self.max_stats, a.detach().max().cpu().item(), "max value")
         self.value(self.mean_stats, a.detach().mean().cpu().item(), "mean value")
