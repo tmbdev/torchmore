@@ -166,6 +166,7 @@ def test_StatsLayer():
     for i in range(100):
         b = torch.rand([3, 4, 6])
         mod.forward(b)
+    assert len(mod) == 200
     assert "mystats" in str(mod)
     assert "4.0,4.0" in str(mod)
     mod.train(False)

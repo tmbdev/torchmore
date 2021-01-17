@@ -642,7 +642,7 @@ class StatsLayer(nn.Module):
             warnings.warn(message)
 
     def __len__(self):
-        return self.min_stats[2]
+        return int(self.min_stats[2].cpu().detach().item())
 
     def value(self, stats, x, message):
         if self.mode == "update":
