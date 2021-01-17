@@ -619,6 +619,7 @@ def check_sigma(stats, x, sigmas=4):
 
 class StatsLayer(nn.Module):
     def __init__(self, name="StatsLayer", error=False):
+        super().__init__()
         self.dim_stats = None
         self.min_stats = None
         self.max_stats = None
