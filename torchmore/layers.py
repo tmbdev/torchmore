@@ -692,3 +692,6 @@ class StatsLayer(nn.Module):
             result += f" std [{self.std_stats[0]},{self.std_stats[1]}]"
         result += ">"
         return result
+
+    def __repr__(self):
+        return str(self)
