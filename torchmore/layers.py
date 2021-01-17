@@ -5,6 +5,7 @@
 #
 
 import sys
+import warnings
 import numpy as np
 import torch
 from torch import autograd, nn
@@ -460,8 +461,7 @@ class NoopSub(nn.Module):
 
 
 class KeepSize(nn.Module):
-    """Run layers, then upsample back to the original.
-    """
+    """Run layers, then upsample back to the original."""
 
     def __init__(self, mode="bilinear", sub=None, dims=None):
         super().__init__()
@@ -586,4 +586,91 @@ class ModPad(nn.Module):
         nbs, nd, nh, nw = result.shape
         assert nh % mod == 0 and nw % mod == 0
         assert nbs == bs and nd == d and nh >= h and nw >= w
+        return result
+
+
+def empty_stats():
+    return torch.tensor([1e38, -1e38, 0, 0, 0])
+
+
+def update_stats(stats, x, message=None):
+    assert len(stats) == 5
+    stats[0] = min(stats[0], x)
+    stats[1] = max(stats[1], x)
+    stats[2] += 1.0
+    stats[3] += x
+    stats[4] += x * x
+
+
+def check_range(stats, x):
+    return x >= stats[0] and x <= stats[1]
+
+
+def check_sigma(stats, x, sigmas=4):
+    assert stats[2] > 0
+    mean = stats[3] / stats[2]
+    std = ((stats[4] / stats[2]) - mean ** 2) ** 0.5
+    return x >= mean - sigmas * std and x <= mean + sigmas * std
+
+
+class StatsLayer(nn.Module):
+    def __init__(self, name="StatsLayer", error=False):
+        self.dim_stats = None
+        self.min_stats = None
+        self.max_stats = None
+        self.mean_stats = None
+        self.std_stats = None
+        self.name = name
+        self.error = error
+        self.train()
+
+    def train(self, mode=True):
+        if mode:
+            self.mode = "update"
+        else:
+            self.mode = "check_range"
+
+    def alert(self, message):
+        if self.error:
+            raise ValueError(message)
+        else:
+            warnings.warn(message)
+
+    def value(self, stats, x, message):
+        if self.mode == "update":
+            update_stats(stats, x)
+        elif self.mode == "check_range":
+            if not check_range(stats, x):
+                self.alert(
+                    f"{message}: range error, {x} not in range {stats[0]}, {stats[1]}"
+                )
+        elif self.mode == "check_std":
+            if not check_sigma(stats, x):
+                self.alert(f"{message}: {x} is outside 4 sigma of input value")
+
+    def forward(self, a):
+        if self.dim_stats is None:
+            self.dim_stats = torch.vstack([empty_stats() for _ in range(a.ndim)])
+            self.min_stats = empty_stats()
+            self.max_stats = empty_stats()
+            self.mean_stats = empty_stats()
+            self.std_stats = empty_stats()
+        for i, s in enumerate(a.shape):
+            self.value(self.dim_stats[i], s, f"dim({i})")
+        self.value(self.min_stats, a.detach().min().cpu().item(), "min value")
+        self.value(self.max_stats, a.detach().max().cpu().item(), "max value")
+        self.value(self.mean_stats, a.detach().mean().cpu().item(), "mean value")
+        self.value(self.std_stats, a.detach().std().cpu().item(), "std value")
+
+    def __str__(self):
+        result = f"<{self.name}"
+        if self.dim_stats is not None:
+            result += " dims"
+            for i in range(len(self.dim_stats)):
+                result += f" [{self.dim_stats[i][0]},{self.dim_stats[i][1]}]"
+            result += f" min [{self.min_stats[0]},{self.min_stats[1]}]"
+            result += f" max [{self.max_stats[0]},{self.max_stats[1]}]"
+            result += f" mean [{self.mean_stats[0]},{self.mean_stats[1]}]"
+            result += f" std [{self.std_stats[0]},{self.std_stats[1]}]"
+        result += ">"
         return result
