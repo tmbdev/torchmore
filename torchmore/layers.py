@@ -680,7 +680,7 @@ class StatsLayer(nn.Module):
         return a
 
     def __str__(self):
-        result = f"<{self.name}"
+        result = f"StatsLayer({self.name}"
         if self.dim_stats is not None and len(self) > 0:
             result += f" (n={len(self)})"
             result += " dims"
@@ -690,7 +690,7 @@ class StatsLayer(nn.Module):
             result += f" max [{self.max_stats[0]},{self.max_stats[1]}]"
             result += f" mean [{self.mean_stats[0]},{self.mean_stats[1]}]"
             result += f" std [{self.std_stats[0]},{self.std_stats[1]}]"
-        result += ">"
+        result += ")"
         return result
 
     def __repr__(self):
