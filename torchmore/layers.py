@@ -666,6 +666,7 @@ class StatsLayer(nn.Module):
         self.value(self.max_stats, a.detach().max().cpu().item(), "max value")
         self.value(self.mean_stats, a.detach().mean().cpu().item(), "mean value")
         self.value(self.std_stats, a.detach().std().cpu().item(), "std value")
+        return a
 
     def __str__(self):
         result = f"<{self.name}"
