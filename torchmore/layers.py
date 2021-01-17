@@ -641,10 +641,16 @@ class StatsLayer(nn.Module):
         else:
             warnings.warn(message)
 
+    def __len__(self):
+        return self.min_stats[2]
+
     def value(self, stats, x, message):
         if self.mode == "update":
             update_stats(stats, x)
-        elif self.mode == "check_range":
+            return
+        if len(self) < 2:
+            return
+        if self.mode == "check_range":
             if not check_range(stats, x):
                 self.alert(
                     f"{message}: range error, {x} not in range {stats[0]}, {stats[1]}"
