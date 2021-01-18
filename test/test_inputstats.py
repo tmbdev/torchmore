@@ -23,7 +23,7 @@ def test_InputStats():
         mod.forward(b)
     assert len(mod) == 200
     assert "mystats" in str(mod)
-    assert "4.0,4.0" in str(mod)
+    assert "4,4" in str(mod)
     mod.train(False)
     mod.forward(a)
     mod.forward(b)
@@ -40,7 +40,7 @@ def test_InputStats2(tmpdir):
         mod.forward(a)
     assert len(mod) == 100
     assert "mystats" in str(mod)
-    assert "4.0,4.0" in str(mod)
+    assert "4,4" in str(mod)
     fname = tmpdir.join("test.pth")
     print(mod)
     with open(fname, "wb") as stream:
@@ -54,4 +54,4 @@ def test_InputStats2(tmpdir):
     print(state)
     print(mod2)
     assert len(mod2) == 100
-    assert "4.0,4.0" in str(mod2)
+    assert "4,4" in str(mod2)
