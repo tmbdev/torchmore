@@ -93,10 +93,10 @@ class InputStats(nn.Module):
                 if self.dim_stats[i][0] > self.dim_stats[i][1]:
                     break
                 result += f" [{int(self.dim_stats[i][0])},{int(self.dim_stats[i][1])}]"
-            result += f" min [{self.min_stats[0]},{self.min_stats[1]}]"
-            result += f" max [{self.max_stats[0]},{self.max_stats[1]}]"
-            result += f" mean [{self.mean_stats[0]},{self.mean_stats[1]}]"
-            result += f" std [{self.std_stats[0]},{self.std_stats[1]}]"
+            result += f" min [{self.min_stats[0]:.3g},{self.min_stats[1]:.3g}]"
+            result += f" max [{self.max_stats[0]:.3g},{self.max_stats[1]:.3g}]"
+            result += f" mean [{self.mean_stats[0]:.3g},{self.mean_stats[1]:.3g}]"
+            result += f" std [{self.std_stats[0]:.3g},{self.std_stats[1]:.3g}]"
         result += ")"
         return result
 
