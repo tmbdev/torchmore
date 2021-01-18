@@ -90,6 +90,8 @@ class InputStats(nn.Module):
             result += f" (n={len(self)})"
             result += " dims"
             for i in range(len(self.dim_stats)):
+                if self.dim_stats[i][0] > self.dim_stats[i][1]:
+                    break
                 result += f" [{self.dim_stats[i][0]},{self.dim_stats[i][1]}]"
             result += f" min [{self.min_stats[0]},{self.min_stats[1]}]"
             result += f" max [{self.max_stats[0]},{self.max_stats[1]}]"
