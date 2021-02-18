@@ -5,7 +5,6 @@
 #
 
 import sys
-import warnings
 import numpy as np
 import torch
 from torch import autograd, nn
