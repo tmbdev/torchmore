@@ -9,6 +9,7 @@ import numpy as np
 import torch
 from torch import autograd, nn
 from torch.nn import functional as F
+import warnings
 
 
 def deprecated(f):
@@ -596,3 +597,31 @@ class ModPad(nn.Module):
         assert nh % mod == 0 and nw % mod == 0
         assert nbs == bs and nd == d and nh >= h and nw >= w
         return result
+
+
+class ModPadded(nn.Module):
+    def __init__(self, mod, sub):
+        super().__init__()
+        self.mod = mod
+        self.sub = sub
+
+    def __str__(self):
+        return f"ModPad({self.mod})"
+
+    def __repr__(self):
+        return f"ModPad({self.mod})"
+
+    def forward(self, a):
+        mod = self.mod
+        bs, d, h, w = a.shape
+        nh = ((h + mod - 1) // mod) * mod
+        nw = ((w + mod - 1) // mod) * mod
+        input = nn.functional.pad(a, (0, nw - w, 0, nh - h))
+        # print(a.shape, input.shape, file=sys.stderr)
+        nbs, nd, nh, nw = input.shape
+        assert nh % mod == 0 and nw % mod == 0
+        assert nbs == bs and nd == d and nh >= h and nw >= w
+        output = self.sub(input)
+        assert output.ndim == 4
+        assert output.shape[0] == bs
+        return output[:, :, :h, :w]
