@@ -600,16 +600,11 @@ class ModPad(nn.Module):
 
 
 class ModPadded(nn.Module):
+
     def __init__(self, mod, sub):
         super().__init__()
         self.mod = mod
         self.sub = sub
-
-    def __str__(self):
-        return f"ModPad({self.mod})"
-
-    def __repr__(self):
-        return f"ModPad({self.mod})"
 
     def forward(self, a):
         mod = self.mod
