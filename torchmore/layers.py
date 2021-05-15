@@ -69,19 +69,20 @@ def check_order(x, order):
             raise ValueError(f"expected order {order}, got {x.order}")
 
 
-class WeightedGrad(autograd.Function):
+class WeightedGradFunction(autograd.Function):
     """Reweight the gradient using the given weights."""
 
+    @staticmethod
     def forward(self, input, weights):
         self.weights = weights
         return input
 
+    @staticmethod
     def backward(self, grad_output):
         return grad_output * self.weights, None
 
 
-def weighted_grad(x, y):
-    return WeightedGrad()(x, y)
+weighted_grad = WeightedGradFunction.apply
 
 
 class Fun(nn.Module):

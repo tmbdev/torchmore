@@ -13,7 +13,11 @@ from torchmore import layers
 
 
 def test_weighted_grad():
-    pass
+    x = torch.ones((2, 3, 4), requires_grad=True)
+    w = torch.ones((2, 3, 4))
+    y = layers.weighted_grad(x, w)
+    loss = 1.0 - y.abs().sum()
+    loss.backward()
 
 
 def test_Fun():
