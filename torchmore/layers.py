@@ -80,6 +80,7 @@ class WeightedGradFunction(autograd.Function):
 
     @staticmethod
     def backward(self, grad_output):
+        assert grad_output.shape == self.weights.shape, (grad_output.shape, self.weights.shape)
         return grad_output * self.weights, None
 
 
