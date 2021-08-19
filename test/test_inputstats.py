@@ -27,6 +27,7 @@ def test_InputStats():
     mod.train(False)
     mod.forward(a)
     mod.forward(b)
+    mod.mode = "check_range"
     with pytest.raises(ValueError):
         mod.forward(torch.rand([3, 4, 5]) + 2.0)
     with pytest.raises(ValueError):

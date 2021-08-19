@@ -34,7 +34,7 @@ def check_sigma(stats, x, sigmas=4):
 
 
 class InputStats(nn.Module):
-    def __init__(self, name="InputStats", error=False):
+    def __init__(self, name="InputStats", error=False, mode="check_std"):
         super().__init__()
         self.train()
         self.name = name
@@ -44,12 +44,13 @@ class InputStats(nn.Module):
         self.register_buffer("max_stats", empty_stats())
         self.register_buffer("mean_stats", empty_stats())
         self.register_buffer("std_stats", empty_stats())
+        self.inference_mode = mode
 
     def train(self, mode=True):
         if mode:
             self.mode = "update"
         else:
-            self.mode = "check_range"
+            self.mode = self.inference_mode
 
     def alert(self, message):
         if self.error:
@@ -66,14 +67,20 @@ class InputStats(nn.Module):
             return
         if len(self) < 2:
             return
-        if self.mode == "check_range":
+        if self.mode == "nocheck":
+            return
+        elif self.mode == "check_range":
             if not check_range(stats, x):
-                self.alert(
-                    f"{message}: range error, {x} not in range {stats[0]}, {stats[1]}"
-                )
+                self.alert(f"{message}: range error, {x} not in range {stats[0]}, {stats[1]}")
         elif self.mode == "check_std":
             if not check_sigma(stats, x):
                 self.alert(f"{message}: {x} is outside 4 sigma of input value")
+        elif isinstance(self.mode, (float, int)):
+            delta = (stats[1] - stats[0]) * self.mode
+            if not check_range([stats[0] - delta, stats[1] + delta], x):
+                self.alert(f"{message}: range error, {x} not within {delta} of {stats[0]}, {stats[1]}")
+        else:
+            raise ValueError(f"{self.mode}: unknown check mode")
 
     def forward(self, a):
         for i in range(min(a.ndim, len(self.dim_stats))):
