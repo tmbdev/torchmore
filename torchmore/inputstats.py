@@ -34,7 +34,7 @@ def check_sigma(stats, x, sigmas=4):
 
 
 class InputStats(nn.Module):
-    def __init__(self, name="InputStats", error=False, mode="check_std"):
+    def __init__(self, name="InputStats", error=False, mode="nocheck"):
         super().__init__()
         self.train()
         self.name = name
