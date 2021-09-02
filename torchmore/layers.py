@@ -7,12 +7,14 @@
 import sys
 import numpy as np
 import torch
+from torch import Tensor
 from torch import autograd, nn
 from torch.nn import functional as F
 import warnings
+from typing import Callable, Tuple, List
 
 
-def deprecated(f):
+def deprecated(f: Callable):
     def g(*args, **kw):
         raise Exception("deprecated")
 
@@ -47,7 +49,7 @@ def conform(*args, slop=None, dims=True):
     return tuple([arg[box] for arg in args])
 
 
-def reorder(x, old, new, set_order=True):
+def reorder(x: Tensor, old: str, new: str, set_order: bool = True):
     """Reorder dimensions according to strings.
 
     E.g., reorder(x, "BLD", "LBD")
@@ -64,9 +66,10 @@ def reorder(x, old, new, set_order=True):
     return result
 
 
-def check_order(x, order):
+def check_order(x: Tensor, order: str):
     # DEPRECATED
     pass
+
 
 class WeightedGradFunction(autograd.Function):
     """Reweight the gradient using the given weights."""
@@ -78,7 +81,10 @@ class WeightedGradFunction(autograd.Function):
 
     @staticmethod
     def backward(self, grad_output):
-        assert grad_output.shape == self.weights.shape, (grad_output.shape, self.weights.shape)
+        assert grad_output.shape == self.weights.shape, (
+            grad_output.shape,
+            self.weights.shape,
+        )
         return grad_output * self.weights, None
 
 
@@ -88,7 +94,7 @@ weighted_grad = WeightedGradFunction.apply
 class Fun(nn.Module):
     """Turn an arbitrary function into a layer."""
 
-    def __init__(self, f, info=None):
+    def __init__(self, f: str, info=None):
         super().__init__()
         assert isinstance(f, str), type(f)
         self.f = eval(f)
@@ -108,7 +114,7 @@ class Fun(nn.Module):
 class Fun_(nn.Module):
     """Turn an arbitrary function into a layer."""
 
-    def __init__(self, f, info=None):
+    def __init__(self, f: Callable, info=None):
         super().__init__()
         assert callable(f)
         self.f = f
@@ -244,18 +250,21 @@ class Input(nn.Module):
             else:
                 x = reorder(x, self.assume, self.reorder)
         if self.sizes is not None:
-            assert len(self.sizes) == x.ndim, \
-                    f"Input expects tensor of rank {len(self.sizes)} got {x.ndim}"
+            assert (
+                len(self.sizes) == x.ndim
+            ), f"Input expects tensor of rank {len(self.sizes)} got {x.ndim}"
             for i, size in enumerate(self.sizes):
                 if size is None:
                     continue
                 elif isinstance(size, int):
-                    assert x.size(i) == size, \
-                        f"Input dim {i}: expected {size}, got {x.size(i)} ({x.shape})"
+                    assert (
+                        x.size(i) == size
+                    ), f"Input dim {i}: expected {size}, got {x.size(i)} ({x.shape})"
                 elif isinstance(size, (list, tuple)):
                     lo, hi = size
-                    assert x.size(i) >= lo and x.size(i) <= hi, \
-                        f"Input dim {i}: expected {(lo, hi)}, got {x.size(i)} ({x.shape})"
+                    assert (
+                        x.size(i) >= lo and x.size(i) <= hi
+                    ), f"Input dim {i}: expected {(lo, hi)}, got {x.size(i)} ({x.shape})"
                 else:
                     raise ValueError("bad size spec")
         if self.device is True:
@@ -597,7 +606,6 @@ class ModPad(nn.Module):
 
 
 class ModPadded(nn.Module):
-
     def __init__(self, mod, sub):
         super().__init__()
         self.mod = mod
