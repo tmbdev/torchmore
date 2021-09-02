@@ -65,10 +65,8 @@ def reorder(x, old, new, set_order=True):
 
 
 def check_order(x, order):
-    if hasattr(x, "order"):
-        if x.order != order:
-            raise ValueError(f"expected order {order}, got {x.order}")
-
+    # DEPRECATED
+    pass
 
 class WeightedGradFunction(autograd.Function):
     """Reweight the gradient using the given weights."""
@@ -239,15 +237,12 @@ class Input(nn.Module):
             hi = x.max().item()
             assert lo >= self.range[0] and hi <= self.range[1], (lo, hi, self.range)
         if self.reorder is not None:
-            if hasattr(x, "order"):
-                x = reorder(x, x.order, self.reorder)
+            if self.assume is True or self.assume == self.reorder:
+                pass
+            elif self.assume is None:
+                raise ValueError("input is required to have a .order property")
             else:
-                if self.assume is True or self.assume == self.reorder:
-                    pass
-                elif self.assume is None:
-                    raise ValueError("input is required to have a .order property")
-                else:
-                    x = reorder(x, self.assume, self.reorder)
+                x = reorder(x, self.assume, self.reorder)
         if self.sizes is not None:
             assert len(self.sizes) == x.ndim, \
                     f"Input expects tensor of rank {len(self.sizes)} got {x.ndim}"
