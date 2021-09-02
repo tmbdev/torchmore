@@ -55,9 +55,10 @@ def reorder(x: Tensor, old: str, new: str, set_order: bool = True):
     E.g., reorder(x, "BLD", "LBD")
     """
     assert isinstance(old, str) and isinstance(new, str)
-    assert (
-        set(old) == set(new) and len(old) == len(new) and len(set(old)) == len(old)
-    ), (old, new)
+    for c in old:
+        assert c in new
+    for c in new:
+        assert c in old
     permutation = tuple([old.find(c) for c in new])
     assert len(old) == x.ndimension(), (old, x.size())
     result = x.permute(permutation).contiguous()
