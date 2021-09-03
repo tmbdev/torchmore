@@ -410,12 +410,30 @@ class Viewer(nn.Module):
 class LSTM(nn.Module):
     """LSTM wrapper that discards the state."""
 
-    def __init__(self, *args, **kw):
+    def __init__(
+        self,
+        input_size,
+        hidden_size,
+        num_layers=1,
+        bias=True,
+        batch_firts=True,
+        dropout=0,
+        bidirectional=False,
+        proj_size=0,
+    ):
         super().__init__()
-        self.lstm = nn.LSTM(*args, **kw)
+        self.lstm = nn.LSTM(
+            input_size,
+            hidden_size,
+            num_layers,
+            bias=bias,
+            batch_first=batch_firts,
+            dropout=dropout,
+            bidirectional=bidirectional,
+        )
 
-    def forward(self, *args, **kw):
-        return self.lstm(*args, **kw)[0]
+    def forward(self, x):
+        return self.lstm(x)[0]
 
 
 class BDL_LSTM(nn.Module):
