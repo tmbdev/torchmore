@@ -10,6 +10,7 @@ import pdb
 import torch
 from torch import nn
 from torchmore import layers
+import torch.jit
 
 
 def test_weighted_grad():
@@ -18,6 +19,7 @@ def test_weighted_grad():
     y = layers.weighted_grad(x, w)
     loss = 1.0 - y.abs().sum()
     loss.backward()
+    # torch.jit.script(mod)
 
 
 def test_Fun():
@@ -26,6 +28,8 @@ def test_Fun():
     b = mod(a)
     assert (b == 1).all()
     assert tuple(b.shape) == (3, 4)
+    # Can't work
+    # torch.jit.script(mod)
 
 
 def test_Info():
@@ -33,6 +37,7 @@ def test_Info():
     a = torch.ones((2, 3, 4))
     b = mod(a)
     assert (b == a).all()
+    torch.jit.script(mod)
 
 
 def test_CheckSizes():
@@ -40,6 +45,7 @@ def test_CheckSizes():
     a = torch.ones((2, 3, 4))
     b = mod(a)
     assert (b == a).all()
+    torch.jit.script(mod)
 
 
 def test_Device():
@@ -47,6 +53,7 @@ def test_Device():
     a = torch.ones((2, 3, 4))
     b = mod(a)
     assert (b.cpu() == a.cpu()).all()
+    torch.jit.script(mod)
 
 
 def test_CheckRange():
@@ -54,6 +61,7 @@ def test_CheckRange():
     a = torch.ones((2, 3, 4))
     b = mod(a)
     assert (b.cpu() == a.cpu()).all()
+    torch.jit.script(mod)
 
 
 def test_Input():
@@ -62,6 +70,7 @@ def test_Input():
     # a.order = "CDAB"
     # b = mod(a)
     # assert tuple(b.shape) == (4, 5, 2, 3)
+    torch.jit.script(mod)
 
 
 def test_Reorder():
@@ -69,6 +78,7 @@ def test_Reorder():
     a = torch.ones((2, 3, 4))
     b = mod(a)
     assert tuple(b.shape) == (4, 3, 2)
+    torch.jit.script(mod)
 
 
 def test_Permute():
@@ -76,20 +86,30 @@ def test_Permute():
     a = torch.ones((2, 3, 4))
     b = mod(a)
     assert tuple(b.shape) == (4, 3, 2)
+    torch.jit.script(mod)
 
 
 def test_Reshape():
-    mod = layers.Reshape(0, (1, 2))
+    mod = layers.Reshape(0, [2, 1])
     a = torch.ones((2, 3, 4))
     b = mod(a)
     assert tuple(b.shape) == (2, 12)
+    # not Jittable
+    # torch.jit.script(mod)
 
+def test_Collapse():
+    mod = layers.Collapse(1, 2)
+    a = torch.ones((2, 3, 4))
+    b = mod(a)
+    assert tuple(b.shape) == (2, 12)
+    torch.jit.script(mod)
 
 def test_Viewer():
     mod = layers.Viewer(6, 4)
     a = torch.ones((2, 3, 4))
     b = mod(a)
     assert tuple(b.shape) == (6, 4)
+    torch.jit.script(mod)
 
 
 def test_BDL_LSTM():
@@ -97,6 +117,7 @@ def test_BDL_LSTM():
     a = torch.ones((17, 3, 100))
     b = mod(a)
     assert tuple(b.shape) == (17, 20, 100)
+    torch.jit.script(mod)
 
 
 def test_BDHW_LSTM():
@@ -104,6 +125,7 @@ def test_BDHW_LSTM():
     a = torch.ones((17, 3, 48, 64))
     b = mod(a)
     assert tuple(b.shape) == (17, 40, 48, 64)
+    torch.jit.script(mod)
 
 
 def test_BDHW_LSTM_to_BDH():
@@ -111,6 +133,7 @@ def test_BDHW_LSTM_to_BDH():
     a = torch.ones((17, 3, 48, 64))
     b = mod(a)
     assert tuple(b.shape) == (17, 13, 48)
+    torch.jit.script(mod)
 
 
 def test_NoopSub():
@@ -118,6 +141,7 @@ def test_NoopSub():
     a = torch.ones((17, 11, 64, 64))
     b = mod(a)
     assert tuple(b.size()) == (17, 11, 64, 64)
+    torch.jit.script(mod)
 
 
 def test_KeepSize():
@@ -125,6 +149,7 @@ def test_KeepSize():
     a = torch.ones((17, 11, 64, 64))
     b = mod(a)
     assert tuple(b.size()) == (17, 11, 64, 64)
+    torch.jit.script(mod)
 
 
 def test_ModPad():
@@ -133,6 +158,17 @@ def test_ModPad():
     a = torch.ones((17, 11, 64, 64))
     b = mod(a)
     assert tuple(b.size()) == (17, 11, 68, 68)
+    torch.jit.script(mod)
+
+
+def test_Additive():
+    mod = layers.Additive(
+        nn.Conv2d(1, 4, 3, padding=(1, 1)), nn.Conv2d(1, 4, 3, padding=(1, 1))
+    )
+    a = torch.ones((17, 1, 64, 64))
+    b = mod(a)
+    assert tuple(b.size()) == (17, 4, 64, 64)
+    # torch.jit.script(mod)
 
 
 def test_Parallel():
@@ -142,6 +178,7 @@ def test_Parallel():
     a = torch.ones((17, 1, 64, 64))
     b = mod(a)
     assert tuple(b.size()) == (17, 11, 64, 64)
+    # torch.jit.script(mod)
 
 
 def test_SimplePooling2d():
@@ -149,6 +186,7 @@ def test_SimplePooling2d():
     a = torch.ones((17, 1, 64, 64))
     b = mod(a)
     assert a.size() == b.size()
+    # torch.jit.script(mod)
 
 
 def test_AcrossPooling2d():
@@ -158,3 +196,4 @@ def test_AcrossPooling2d():
     a = torch.ones((17, 1, 64, 64))
     b = mod(a)
     assert tuple(b.size()) == (17, 8, 64, 64)
+    # torch.jit.script(mod)
