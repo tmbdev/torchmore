@@ -269,7 +269,7 @@ class Input(nn.Module):
                     ), f"Input dim {i}: expected {(lo, hi)}, got {x.size(i)} ({x.shape})"
                 else:
                     raise ValueError("bad size spec")
-        if self.device != "":
+        if self.device == "":
             x = x.to(device=self.param.device, dtype=torch.float32)
         else:
             x = x.to(device=self.device, dtype=torch.float32)
