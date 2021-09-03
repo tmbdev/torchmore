@@ -278,7 +278,7 @@ class Input(nn.Module):
     def __repr__(self):
         autodev = self.param.device if self.device else None
         return (
-            f"Input({self.assume}->{self.reorder} "
+            f"Input({self.assume} "
             + f"{self.dtype} {self.range} {autodev} {self.sizes})"
         )
 
@@ -528,7 +528,6 @@ class KeepSize(nn.Module):
             return F.interpolate(y, size=size, mode=self.mode, align_corners=False)
         else:
             return F.interpolate(y, size=size, mode=self.mode)
-
 
 
 class Additive(nn.Module):
