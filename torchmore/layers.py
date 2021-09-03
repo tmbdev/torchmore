@@ -373,7 +373,7 @@ class Collapse(nn.Module):
         self.start = start
         self.end = end
 
-    def forward(self, x: Tensor):
+    def forward(self, x):
         newshape = [x.shape[i] for i in range(0, self.start)]
         d = 1
         for i in range(self.start, self.end + 1):
@@ -388,6 +388,7 @@ class Collapse(nn.Module):
             return x.view(newshape[0], newshape[1], newshape[2])
         if len(newshape) == 4:
             return x.view(newshape[0], newshape[1], newshape[2], newshape[3])
+        raise ValueError("Collapse: unknown shape {newshape}")
 
     def __repr__(self):
         return "Collapse({}, {})".format(self.start, self.end)
