@@ -234,16 +234,15 @@ class Input(nn.Module):
         :param order: order of axes (e.g., BDL, BHWD, etc.)
         :param dtype: dtype to convert to
         :param range: tuple giving low/high values
-        :param device: input device to move to (True = auto)
         :param assume: default input order (when tensor doesn't have order attribute; None=required)
         """
         super().__init__()
         assert reorder == ""
         assert dtype == "float"
         self.assume = assume
+        self.device = device
         self.dtype = dtype
         self.range = range
-        self.device = device
         self.param = torch.nn.Parameter(torch.zeros(1))
         self.sizes = sizes
 
@@ -271,9 +270,9 @@ class Input(nn.Module):
                 else:
                     raise ValueError("bad size spec")
         if self.device != "":
-            x = x.to(device=self.device, dtype=torch.float32)
+            x = x.to(device=self.param.device, dtype=torch.float32)
         else:
-            x = x.float()
+            x = x.to(device=self.device, dtype=torch.float32)
         return x
 
     def __repr__(self):
