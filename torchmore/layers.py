@@ -576,16 +576,17 @@ class NoopSub(nn.Module):
 class KeepSize(nn.Module):
     """Run layers, then upsample back to the original."""
 
-    def __init__(self, mode="bilinear", sub=None, dims=None):
+    dims: List[int]
+
+    def __init__(self, mode: str = "bilinear", sub=None, dims: List[int] = []):
         super().__init__()
-        assert not isinstance(sub, List), "convert list explicitly to nn.Sequential"
         self.sub = sub
         self.mode = mode
         self.dims = dims
 
     def forward(self, x):
         y = self.sub(x)
-        if self.dims is None:
+        if len(self.dims) == 0:
             size = x.size()[2:]
         else:
             size = [x.size(i) for i in self.dims]
