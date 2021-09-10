@@ -12,18 +12,14 @@ from torch import autograd, nn
 from torch.nn import functional as F
 import warnings
 from typing import Callable, Tuple, List, Type
+from .utils import *
 
 
-def deprecated(f: Callable):
-    def g(*args, **kw):
-        raise Exception("deprecated")
-
-    return g
-
-
-def conform1(a, *args, slop=None, dims=True):
+def conform_tensors1(
+    a: Tensor, args: List[Tensor], slop: int = 9999, dims: List[int] = []
+):
     """Trim the remaining args down to the size of the first."""
-    if dims is True:
+    if len(dims) == 0:
         dims = np.arange(a.ndimension())
     if slop is not None:
         # FIXME convert to torch
@@ -36,7 +32,11 @@ def conform1(a, *args, slop=None, dims=True):
     return tuple([a[box]] + [arg[box] for arg in args])
 
 
-def conform(*args, slop=None, dims=True):
+def conform1(a, *args, slop=9999, dims=[]):
+    return conform_tensors1(a, args, slop=slop, dims=dims)
+
+
+def conform_tensors(args: List[Tensor], slop: int = 9999, dims: List[int] = []):
     """Trim all args to the size of the smallest arg."""
     if slop is not None:
         # FIXME convert to torch
@@ -45,8 +45,12 @@ def conform(*args, slop=None, dims=True):
         for i in dims:
             assert deltas[i] <= slop, (sizes, deltas)
     box = map(min, zip(*[a.shape for a in args]))
-    box = tuple(slice(j) if i in dims else slice(None) for i, j in enumerate(box))
-    return tuple([arg[box] for arg in args])
+    box1 = tuple(slice(j) if i in dims else slice(None) for i, j in enumerate(box))
+    return tuple([arg[box1] for arg in args])
+
+
+def conform(*args, slop=9999, dims=[]):
+    return conform_tensors(args, slop=slop, dims=dims)
 
 
 def reorder(x: Tensor, old: str, new: str, set_order: bool = True):
@@ -65,6 +69,7 @@ def reorder(x: Tensor, old: str, new: str, set_order: bool = True):
     return result
 
 
+@DEPRECATED
 def check_order(x: Tensor, order: str):
     # DEPRECATED
     pass
@@ -75,6 +80,7 @@ class WeightedGradFunction(autograd.Function):
 
     @staticmethod
     def forward(self, input, weights):
+        raise Exception("WeightedGradFunction has been deprecated")
         self.weights = weights
         return input
 
@@ -90,6 +96,7 @@ class WeightedGradFunction(autograd.Function):
 weighted_grad = WeightedGradFunction.apply
 
 
+@deprecated
 class Fun(nn.Module):
     """Turn an arbitrary function into a layer."""
 
@@ -110,6 +117,7 @@ class Fun(nn.Module):
         return "Fun {} {}".format(self.info, self.f_str)
 
 
+@deprecated
 class Fun_(nn.Module):
     """Turn an arbitrary function into a layer."""
 
@@ -135,7 +143,7 @@ class Info(nn.Module):
         self.count = 0
         self.every = every
 
-    def forward(self, x):
+    def forward(self, x: Tensor):
         if self.count % self.every == 0:
             print(("Info", self.info, x.size(), x.min().item(), x.max().item()))
         self.count += 1
@@ -157,7 +165,7 @@ class CheckSizes(nn.Module):
         self.name = kw.get("name", "")
         self.limits = [(x, x) if isinstance(x, int) else x for x in args]
 
-    def forward(self, x):
+    def forward(self, x: Tensor):
         for i in range(x.ndim):
             lo, hi = self.limits[i]
             actual = x.shape[i]
@@ -186,7 +194,7 @@ class Device(nn.Module):
         super().__init__()
         self.device = device
 
-    def forward(self, x):
+    def forward(self, x: Tensor):
         return x.to(self.device)
 
     def __repr__(self):
@@ -196,12 +204,12 @@ class Device(nn.Module):
 class CheckRange(nn.Module):
     """Check that values are within the given range."""
 
-    def __init__(self, lo=-1e5, hi=1e5, name=""):
+    def __init__(self, lo: float = -1e5, hi: float = 1e5, name=""):
         super().__init__()
         self.name = name
         self.valid = (lo, hi)
 
-    def forward(self, x):
+    def forward(self, x: Tensor):
         assert x.min().item() >= self.valid[0], (self.name, x.min().item(), self.valid)
         assert x.max().item() <= self.valid[1], (self.name, x.max().item(), self.valid)
         return x
@@ -212,6 +220,7 @@ class CheckRange(nn.Module):
         )
 
 
+@deprecated
 class Input(nn.Module):
     assume: str
     reorder: str
@@ -302,6 +311,7 @@ class Reorder(nn.Module):
         return 'Reorder("{}", "{}")'.format(self.old, self.new)
 
 
+@DEPRECATED
 class CheckOrder(nn.Module):
     def __init__(self, order=None):
         super().__init__()
@@ -313,15 +323,30 @@ class CheckOrder(nn.Module):
         return x
 
 
+def trim_rest(args: List[int]) -> List[int]:
+    while len(args) > 0 and args[-1] == -1:
+        args.pop()
+    return args
+
+
 class Permute(nn.Module):
     """Permute the dimensions of the input tensor."""
 
-    def __init__(self, *args):
+    def __init__(
+        self,
+        d0: int,
+        d1: int = -1,
+        d2: int = -1,
+        d3: int = -1,
+        d4: int = -1,
+        d5: int = -1,
+    ):
         super().__init__()
+        args = trim_rest([d0, d1, d2, d3, d4, d5])
         self.permutation = args
 
     def forward(self, x):
-        return x.permute(*self.permutation).contiguous()
+        return x.permute(self.permutation).contiguous()
 
     def __repr__(self):
         return "Permute({})".format(", ".join(list(self.permutation)))
@@ -335,9 +360,17 @@ class Reshape(nn.Module):
     are collapsed into a single output dimension.
     """
 
-    def __init__(self, *args):
+    def __init__(
+        self,
+        d0: int,
+        d1: int = -1,
+        d2: int = -1,
+        d3: int = -1,
+        d4: int = -1,
+        d5: int = -1,
+    ):
         super().__init__()
-        self.shape = args
+        self.shape = trim_rest([d0, d1, d2, d3, d4, d5])
 
     def forward(self, x):
         newshape = []
@@ -368,12 +401,12 @@ class Collapse(nn.Module):
     start: int
     end: int
 
-    def __init__(self, start, end):
+    def __init__(self, start: int, end: int):
         super().__init__()
         self.start = start
         self.end = end
 
-    def forward(self, x):
+    def forward(self, x: Tensor):
         newshape = [x.shape[i] for i in range(0, self.start)]
         d = 1
         for i in range(self.start, self.end + 1):
@@ -397,12 +430,20 @@ class Collapse(nn.Module):
 class Viewer(nn.Module):
     """Module equivalent of x.view(*args)"""
 
-    def __init__(self, *args):
+    def __init__(
+        self,
+        d0: int,
+        d1: int = -1,
+        d2: int = -1,
+        d3: int = -1,
+        d4: int = -1,
+        d5: int = -1,
+    ):
         super().__init__()
-        self.shape = args
+        self.shape = trim_rest([d0, d1, d2, d3, d4, d5])
 
     def forward(self, x):
-        return x.view(*self.shape)
+        return x.view(self.shape)
 
     def __repr__(self):
         return "Viewer({})".format(", ".join([repr(x) for x in self.shape]))
@@ -446,11 +487,11 @@ class BDL_LSTM(nn.Module):
 
     def __init__(
         self,
-        ninput=None,
-        noutput=None,
-        num_layers=1,
-        bidirectional=False,
-        batch_first=True,
+        ninput: int = None,
+        noutput: int = None,
+        num_layers: int = 1,
+        bidirectional: bool = False,
+        batch_first: bool = True,
     ):
         super().__init__()
         assert ninput is not None
@@ -459,7 +500,9 @@ class BDL_LSTM(nn.Module):
             ninput, noutput, num_layers=num_layers, bidirectional=bidirectional
         )
 
-    def forward(self, seq, volatile: bool = False, verbose: bool = False):
+    def forward(
+        self, seq: Tensor, volatile: bool = False, verbose: bool = False
+    ) -> Tensor:
         seq = reorder(seq, "BDL", "LBD")
         output, _ = self.lstm(seq)
         return reorder(output, "LBD", "BDL")
@@ -472,7 +515,12 @@ class BDHW_LSTM(nn.Module):
     """
 
     def __init__(
-        self, ninput=None, noutput=None, nhidden=None, num_layers=1, bidirectional=True
+        self,
+        ninput: int = None,
+        noutput: int = None,
+        nhidden: int = None,
+        num_layers: int = 1,
+        bidirectional: bool = True,
     ):
         super().__init__()
         nhidden = nhidden or noutput
@@ -484,7 +532,7 @@ class BDHW_LSTM(nn.Module):
             nhidden * ndir, noutput, num_layers=num_layers, bidirectional=bidirectional
         )
 
-    def forward(self, img):
+    def forward(self, img: Tensor) -> Tensor:
         b, d, h, w = img.shape
         hin = reorder(img, "BDHW", "WHBD").view(w, h * b, d)
         hout, _ = self.hlstm(hin)
@@ -521,7 +569,7 @@ class NoopSub(nn.Module):
         super().__init__()
         self.sub = sub
 
-    def forward(self, x):
+    def forward(self, x: Tensor) -> Tensor:
         return self.sub(x)
 
 
@@ -530,8 +578,7 @@ class KeepSize(nn.Module):
 
     def __init__(self, mode="bilinear", sub=None, dims=None):
         super().__init__()
-        if isinstance(sub, list):
-            sub = nn.Sequential(*sub)
+        assert not isinstance(sub, List), "convert list explicitly to nn.Sequential"
         self.sub = sub
         self.mode = mode
         self.dims = dims

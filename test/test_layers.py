@@ -13,7 +13,7 @@ from torchmore import layers
 import torch.jit
 
 
-def test_weighted_grad():
+def NO_test_weighted_grad():
     x = torch.ones((2, 3, 4), requires_grad=True)
     w = torch.ones((2, 3, 4))
     y = layers.weighted_grad(x, w)
@@ -22,7 +22,7 @@ def test_weighted_grad():
     # torch.jit.script(mod)
 
 
-def test_Fun():
+def NO_test_Fun():
     mod = layers.Fun("lambda x: x[0]**2")
     a = torch.ones((2, 3, 4))
     b = mod(a)

@@ -35,13 +35,10 @@ def check_sigma(stats: Tensor, x: float, sigmas: float = 4.0):
 
 
 class InputStats(nn.Module):
-    def __init__(
-        self, name: str = "InputStats", error: bool = False, mode: str = "nocheck"
-    ):
+    def __init__(self, name: str = "InputStats"):
         super().__init__()
-        self.train()
+        self.updating = True
         self.name = name
-        self.error = error
         self.register_buffer(
             "dim_stats", torch.vstack([empty_stats() for _ in range(8)])
         )
@@ -49,27 +46,20 @@ class InputStats(nn.Module):
         self.register_buffer("max_stats", empty_stats())
         self.register_buffer("mean_stats", empty_stats())
         self.register_buffer("std_stats", empty_stats())
-        self.inference_mode = mode
 
     def train(self, mode=True):
         if mode:
-            self.mode = "update"
+            self.updating = True
         else:
-            self.mode = self.inference_mode
+            self.updating = False
 
-    def alert(self, message):
-        if self.error:
-            raise ValueError(message)
-        else:
-            warnings.warn(message)
+    def add_value(self, stats, x: float, message: str):
+        if not self.updating:
+            return
+        update_stats(stats, x)
 
     def numsamples(self) -> int:
         return int(self.min_stats[2].cpu().detach().item())
-
-    def add_value(self, stats, x: float, message: str):
-        if self.mode == "update":
-            update_stats(stats, x)
-            return
 
     def __len__(self):
         return self.numsamples()

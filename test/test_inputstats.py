@@ -12,9 +12,8 @@ import torch
 from torch import nn
 from torchmore import inputstats
 
-
 def test_InputStats():
-    mod = inputstats.InputStats(name="mystats", error=True)
+    mod = inputstats.InputStats(name="mystats")
     for i in range(100):
         a = torch.rand([3, 4, 5])
         mod.forward(a)
@@ -27,17 +26,14 @@ def test_InputStats():
     mod.train(False)
     mod.forward(a)
     mod.forward(b)
-    if False:
-        mod.mode = "check_range"
-        with pytest.raises(ValueError):
-            mod.forward(torch.rand([3, 4, 5]) + 2.0)
-        with pytest.raises(ValueError):
-            mod.forward(torch.rand([3, 4, 7]))
+    assert len(mod) == 200
+    assert "mystats" in str(mod)
+    assert "4,4" in str(mod)
     torch.jit.script(mod)
 
 
 def test_InputStats2(tmpdir):
-    mod = inputstats.InputStats(name="mystats", error=True)
+    mod = inputstats.InputStats(name="mystats")
     for i in range(100):
         a = torch.rand([3, 4, 5])
         mod.forward(a)
