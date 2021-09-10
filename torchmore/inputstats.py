@@ -91,3 +91,56 @@ class InputStats(nn.Module):
 
     def __repr__(self):
         return str(self)
+
+
+class SampleTensorBase(nn.Module):
+    def __init__(self, bufsize: int = 4096):
+        super().__init__()
+        self.bufsize = bufsize
+        self.count = 0
+        self.every = 1
+        self.register_buffer("buf", None)
+        self.register_buffer("counts", None)
+
+    def add_tensor(self, tensor: Tensor):
+        self.count += 1
+        if (self.count-1) % self.every != 0:
+            return
+        a = torch.tensor(tensor.detach(), device="cpu")
+        if self.buf is None:
+            self.buf = a.unsqueeze(0)
+            self.counts = torch.tensor([self.count])
+            return
+        if len(self.buf) >= self.bufsize:
+            self.buf = self.buf[::2]
+            self.counts = self.counts[::2]
+            self.every *= 2
+        self.buf = torch.cat([self.buf, a.unsqueeze(0)], dim=0)
+        self.counts = torch.cat([self.counts, torch.tensor([self.count])])
+
+    def __len__(self):
+        return len(self.buf)
+
+    def __iter__(self):
+        return iter(self.buf)
+
+    def __str__(self):
+        return f"SampleTensors(bufsize={self.bufsize}, every={self.every}, len={len(self)})"
+
+    def __repr__(self):
+        return str(self)
+
+
+class SampleTensor(SampleTensorBase):
+    def __init__(self, bufsize: int = 4096):
+        super().__init__(bufsize)
+    def forward(self, a):
+        self.add_tensor(a)
+        return a
+
+class SampleGrandient(SampleTensorBase):
+    def __init__(self, bufsize: int = 4096):
+        super().__init__(bufsize)
+    def backward(self, grad_output):
+        self.add_tensor(grad_output)
+        return grad_output
