@@ -79,7 +79,7 @@ class UnetLayer(nn.Module):
     """Resolution pyramid layer using convolutions and upscaling.
     """
 
-    def __init__(self, d, sub=None, post=None):
+    def __init__(self, d, sub=None, post=None, dropout=0.0):
         super().__init__()
         self.conv = flex.Conv2d(d, 3, padding=1)
         self.down = nn.MaxPool2d(2)
@@ -87,6 +87,7 @@ class UnetLayer(nn.Module):
         if isinstance(sub, list):
             sub = nn.Sequential(*sub)
         self.sub = sub
+        self.dropout = None if dropout <= 0.0 else nn.Dropout(dropout)
         self.post = post
 
     def forward(self, x):
@@ -94,6 +95,8 @@ class UnetLayer(nn.Module):
         assert h % 2 == 0 and w % 2 == 0, x.size()
         xc = self.conv(x)
         lo = self.down(xc)
+        if self.dropout is not None:
+            lo = self.dropout(lo)
         lo1 = self.sub(lo)
         hi = self.up(lo1)
         result = torch.cat([xc, hi], dim=1)
@@ -102,11 +105,11 @@ class UnetLayer(nn.Module):
         return result
 
 
-def make_unet(sizes, sub=None):
+def make_unet(sizes, sub=None, dropout=[0.0] * 100):
     if len(sizes) == 1:
         if sub is None:
             return nn.Sequential(*conv2d_block(sizes[0]))
         else:
             return UnetLayer(sizes[0], sub=sub)
     else:
-        return UnetLayer(sizes[0], sub=make_unet(sizes[1:], sub=sub))
+        return UnetLayer(sizes[0], sub=make_unet(sizes[1:], sub=sub, dropout=dropout[1:]), dropout=dropout[0])
