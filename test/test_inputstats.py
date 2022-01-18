@@ -12,9 +12,8 @@ import torch
 from torch import nn
 from torchmore import inputstats
 
-
 def test_InputStats():
-    mod = inputstats.InputStats(name="mystats", error=True)
+    mod = inputstats.InputStats(name="mystats")
     for i in range(100):
         a = torch.rand([3, 4, 5])
         mod.forward(a)
@@ -27,14 +26,14 @@ def test_InputStats():
     mod.train(False)
     mod.forward(a)
     mod.forward(b)
-    with pytest.raises(ValueError):
-        mod.forward(torch.rand([3, 4, 5]) + 2.0)
-    with pytest.raises(ValueError):
-        mod.forward(torch.rand([3, 4, 7]))
+    assert len(mod) == 200
+    assert "mystats" in str(mod)
+    assert "4,4" in str(mod)
+    torch.jit.script(mod)
 
 
 def test_InputStats2(tmpdir):
-    mod = inputstats.InputStats(name="mystats", error=True)
+    mod = inputstats.InputStats(name="mystats")
     for i in range(100):
         a = torch.rand([3, 4, 5])
         mod.forward(a)
@@ -43,6 +42,7 @@ def test_InputStats2(tmpdir):
     assert "4,4" in str(mod)
     fname = tmpdir.join("test.pth")
     print(mod)
+    torch.jit.script(mod)
     with open(fname, "wb") as stream:
         state = mod.state_dict()
         print("[[[", state, "]]]")
@@ -55,3 +55,18 @@ def test_InputStats2(tmpdir):
     print(mod2)
     assert len(mod2) == 100
     assert "4,4" in str(mod2)
+    torch.jit.script(mod2)
+
+def test_SampleTensor():
+    mod = inputstats.SampleTensor(bufsize=64)
+    for i in range(100):
+        a = torch.rand([3, 4, 5])
+        mod.forward(a)
+    assert mod.count == 100
+    assert mod.every == 2
+    for i in range(100):
+        a = torch.rand([3, 4, 5])
+        mod.forward(a)    
+    assert mod.count == 200
+    assert mod.every == 4
+    torch.jit.script(mod)

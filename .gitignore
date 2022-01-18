@@ -5,3 +5,4 @@ _*
 !.gitignore
 __pycache___
 .ipynb_checkpoints
+venv

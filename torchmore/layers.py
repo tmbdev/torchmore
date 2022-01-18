@@ -7,21 +7,19 @@
 import sys
 import numpy as np
 import torch
+from torch import Tensor
 from torch import autograd, nn
 from torch.nn import functional as F
 import warnings
+from typing import Callable, Tuple, List, Type
+from .utils import *
 
 
-def deprecated(f):
-    def g(*args, **kw):
-        raise Exception("deprecated")
-
-    return g
-
-
-def conform1(a, *args, slop=None, dims=True):
+def conform_tensors1(
+    a: Tensor, args: List[Tensor], slop: int = 9999, dims: List[int] = []
+):
     """Trim the remaining args down to the size of the first."""
-    if dims is True:
+    if len(dims) == 0:
         dims = np.arange(a.ndimension())
     if slop is not None:
         # FIXME convert to torch
@@ -34,7 +32,11 @@ def conform1(a, *args, slop=None, dims=True):
     return tuple([a[box]] + [arg[box] for arg in args])
 
 
-def conform(*args, slop=None, dims=True):
+def conform1(a, *args, slop=9999, dims=[]):
+    return conform_tensors1(a, args, slop=slop, dims=dims)
+
+
+def conform_tensors(args: List[Tensor], slop: int = 9999, dims: List[int] = []):
     """Trim all args to the size of the smallest arg."""
     if slop is not None:
         # FIXME convert to torch
@@ -43,52 +45,62 @@ def conform(*args, slop=None, dims=True):
         for i in dims:
             assert deltas[i] <= slop, (sizes, deltas)
     box = map(min, zip(*[a.shape for a in args]))
-    box = tuple(slice(j) if i in dims else slice(None) for i, j in enumerate(box))
-    return tuple([arg[box] for arg in args])
+    box1 = tuple(slice(j) if i in dims else slice(None) for i, j in enumerate(box))
+    return tuple([arg[box1] for arg in args])
 
 
-def reorder(x, old, new, set_order=True):
+def conform(*args, slop=9999, dims=[]):
+    return conform_tensors(args, slop=slop, dims=dims)
+
+
+def reorder(x: Tensor, old: str, new: str, set_order: bool = True):
     """Reorder dimensions according to strings.
 
     E.g., reorder(x, "BLD", "LBD")
     """
     assert isinstance(old, str) and isinstance(new, str)
-    assert (
-        set(old) == set(new) and len(old) == len(new) and len(set(old)) == len(old)
-    ), (old, new)
-    permutation = tuple([old.find(c) for c in new])
-    assert len(old) == x.ndimension(), (old, x.size())
+    for c in old:
+        assert new.find(c) >= 0
+    for c in new:
+        assert old.find(c) >= 0
+    permutation = [old.find(c) for c in new]
+    assert len(old) == x.ndim, (old, x.size())
     result = x.permute(permutation).contiguous()
-    if set_order:
-        result.order = new
     return result
 
 
-def check_order(x, order):
-    if hasattr(x, "order"):
-        if x.order != order:
-            raise ValueError(f"expected order {order}, got {x.order}")
+@DEPRECATED
+def check_order(x: Tensor, order: str):
+    # DEPRECATED
+    pass
 
 
-class WeightedGrad(autograd.Function):
+class WeightedGradFunction(autograd.Function):
     """Reweight the gradient using the given weights."""
 
+    @staticmethod
     def forward(self, input, weights):
+        raise Exception("WeightedGradFunction has been deprecated")
         self.weights = weights
         return input
 
+    @staticmethod
     def backward(self, grad_output):
+        assert grad_output.shape == self.weights.shape, (
+            grad_output.shape,
+            self.weights.shape,
+        )
         return grad_output * self.weights, None
 
 
-def weighted_grad(x, y):
-    return WeightedGrad()(x, y)
+weighted_grad = WeightedGradFunction.apply
 
 
+@deprecated
 class Fun(nn.Module):
     """Turn an arbitrary function into a layer."""
 
-    def __init__(self, f, info=None):
+    def __init__(self, f: str, info=None):
         super().__init__()
         assert isinstance(f, str), type(f)
         self.f = eval(f)
@@ -105,10 +117,11 @@ class Fun(nn.Module):
         return "Fun {} {}".format(self.info, self.f_str)
 
 
+@deprecated
 class Fun_(nn.Module):
     """Turn an arbitrary function into a layer."""
 
-    def __init__(self, f, info=None):
+    def __init__(self, f: Callable, info=None):
         super().__init__()
         assert callable(f)
         self.f = f
@@ -130,7 +143,7 @@ class Info(nn.Module):
         self.count = 0
         self.every = every
 
-    def forward(self, x):
+    def forward(self, x: Tensor):
         if self.count % self.every == 0:
             print(("Info", self.info, x.size(), x.min().item(), x.max().item()))
         self.count += 1
@@ -149,11 +162,13 @@ class CheckSizes(nn.Module):
     def __init__(self, *args, **kw):
         super().__init__()
         self.order = kw.get("order")
-        self.name = kw.get("name")
+        self.name = kw.get("name", "")
         self.limits = [(x, x) if isinstance(x, int) else x for x in args]
 
-    def forward(self, x):
-        for (i, actual), (lo, hi) in zip(enumerate(tuple(x.size())), self.limits):
+    def forward(self, x: Tensor):
+        for i in range(x.ndim):
+            lo, hi = self.limits[i]
+            actual = x.shape[i]
             if lo >= 0 and actual < lo:
                 raise Exception(
                     "{} ({}): index {} too low ({} not >= {})".format(
@@ -179,7 +194,7 @@ class Device(nn.Module):
         super().__init__()
         self.device = device
 
-    def forward(self, x):
+    def forward(self, x: Tensor):
         return x.to(self.device)
 
     def __repr__(self):
@@ -189,11 +204,12 @@ class Device(nn.Module):
 class CheckRange(nn.Module):
     """Check that values are within the given range."""
 
-    def __init__(self, lo=-1e5, hi=1e5, name=""):
+    def __init__(self, lo: float = -1e5, hi: float = 1e5, name=""):
         super().__init__()
+        self.name = name
         self.valid = (lo, hi)
 
-    def forward(self, x):
+    def forward(self, x: Tensor):
         assert x.min().item() >= self.valid[0], (self.name, x.min().item(), self.valid)
         assert x.max().item() <= self.valid[1], (self.name, x.max().item(), self.valid)
         return x
@@ -204,30 +220,38 @@ class CheckRange(nn.Module):
         )
 
 
+@deprecated
 class Input(nn.Module):
+    assume: str
+    reorder: str
+    range: Tuple[float, float]
+    size: List[Tuple[int, int]]
+    device: str
+    dtype: str
+
     def __init__(
         self,
-        assume,
-        reorder=None,
-        range=None,
-        sizes=None,
-        device=True,
-        dtype=torch.float32,
+        assume: str,
+        reorder: str = "",
+        range: Tuple[float, float] = (-1e5, 1e5),
+        sizes: List[Tuple[int, int]] = [],
+        device: str = "",
+        dtype: str = "float",
     ):
         """Declares the input for a network.
 
         :param order: order of axes (e.g., BDL, BHWD, etc.)
         :param dtype: dtype to convert to
         :param range: tuple giving low/high values
-        :param device: input device to move to (True = auto)
         :param assume: default input order (when tensor doesn't have order attribute; None=required)
         """
         super().__init__()
+        assert reorder == ""
+        assert dtype == "float"
         self.assume = assume
-        self.reorder = reorder if reorder is not None else assume
+        self.device = device
         self.dtype = dtype
         self.range = range
-        self.device = device
         self.param = torch.nn.Parameter(torch.zeros(1))
         self.sizes = sizes
 
@@ -236,41 +260,34 @@ class Input(nn.Module):
             lo = x.min().item()
             hi = x.max().item()
             assert lo >= self.range[0] and hi <= self.range[1], (lo, hi, self.range)
-        if self.reorder is not None:
-            if hasattr(x, "order"):
-                x = reorder(x, x.order, self.reorder)
-            else:
-                if self.assume is True or self.assume == self.reorder:
-                    pass
-                elif self.assume is None:
-                    raise ValueError("input is required to have a .order property")
-                else:
-                    x = reorder(x, self.assume, self.reorder)
         if self.sizes is not None:
-            assert len(self.sizes) == x.ndim, \
-                    f"Input expects tensor of rank {len(self.sizes)} got {x.ndim}"
+            assert (
+                len(self.sizes) == x.ndim
+            ), f"Input expects tensor of rank {len(self.sizes)} got {x.ndim}"
             for i, size in enumerate(self.sizes):
                 if size is None:
                     continue
                 elif isinstance(size, int):
-                    assert x.size(i) == size, \
-                        f"Input dim {i}: expected {size}, got {x.size(i)} ({x.shape})"
+                    assert (
+                        x.size(i) == size
+                    ), f"Input dim {i}: expected {size}, got {x.size(i)} ({x.shape})"
                 elif isinstance(size, (list, tuple)):
                     lo, hi = size
-                    assert x.size(i) >= lo and x.size(i) <= hi, \
-                        f"Input dim {i}: expected {(lo, hi)}, got {x.size(i)} ({x.shape})"
+                    assert (
+                        x.size(i) >= lo and x.size(i) <= hi
+                    ), f"Input dim {i}: expected {(lo, hi)}, got {x.size(i)} ({x.shape})"
                 else:
                     raise ValueError("bad size spec")
-        if self.device is True:
-            x = x.to(device=self.param.device, dtype=self.dtype)
+        if self.device == "":
+            x = x.to(device=self.param.device, dtype=torch.float32)
         else:
-            x = x.type(self.dtype)
+            x = x.to(device=self.device, dtype=torch.float32)
         return x
 
     def __repr__(self):
         autodev = self.param.device if self.device else None
         return (
-            f"Input({self.assume}->{self.reorder} "
+            f"Input({self.assume} "
             + f"{self.dtype} {self.range} {autodev} {self.sizes})"
         )
 
@@ -294,6 +311,7 @@ class Reorder(nn.Module):
         return 'Reorder("{}", "{}")'.format(self.old, self.new)
 
 
+@DEPRECATED
 class CheckOrder(nn.Module):
     def __init__(self, order=None):
         super().__init__()
@@ -305,15 +323,30 @@ class CheckOrder(nn.Module):
         return x
 
 
+def trim_rest(args: List[int]) -> List[int]:
+    while len(args) > 0 and args[-1] == -1:
+        args.pop()
+    return args
+
+
 class Permute(nn.Module):
     """Permute the dimensions of the input tensor."""
 
-    def __init__(self, *args):
+    def __init__(
+        self,
+        d0: int,
+        d1: int = -1,
+        d2: int = -1,
+        d3: int = -1,
+        d4: int = -1,
+        d5: int = -1,
+    ):
         super().__init__()
+        args = trim_rest([d0, d1, d2, d3, d4, d5])
         self.permutation = args
 
     def forward(self, x):
-        return x.permute(*self.permutation).contiguous()
+        return x.permute(self.permutation).contiguous()
 
     def __repr__(self):
         return "Permute({})".format(", ".join(list(self.permutation)))
@@ -327,9 +360,17 @@ class Reshape(nn.Module):
     are collapsed into a single output dimension.
     """
 
-    def __init__(self, *args):
+    def __init__(
+        self,
+        d0: int,
+        d1: int = -1,
+        d2: int = -1,
+        d3: int = -1,
+        d4: int = -1,
+        d5: int = -1,
+    ):
         super().__init__()
-        self.shape = args
+        self.shape = trim_rest([d0, d1, d2, d3, d4, d5])
 
     def forward(self, x):
         newshape = []
@@ -351,15 +392,58 @@ class Reshape(nn.Module):
         return "Reshape({})".format(", ".join([repr(x) for x in self.shape]))
 
 
+class Collapse(nn.Module):
+    """Reshape an input tensor.
+
+    Collapse a range of dimensions.
+    """
+
+    start: int
+    end: int
+
+    def __init__(self, start: int, end: int):
+        super().__init__()
+        self.start = start
+        self.end = end
+
+    def forward(self, x: Tensor):
+        newshape = [x.shape[i] for i in range(0, self.start)]
+        d = 1
+        for i in range(self.start, self.end + 1):
+            d *= x.shape[i]
+        newshape += [d]
+        newshape += [x.shape[i] for i in range(self.end + 1, len(x.shape))]
+        if len(newshape) == 1:
+            return x.view(newshape[0])
+        if len(newshape) == 2:
+            return x.view(newshape[0], newshape[1])
+        if len(newshape) == 3:
+            return x.view(newshape[0], newshape[1], newshape[2])
+        if len(newshape) == 4:
+            return x.view(newshape[0], newshape[1], newshape[2], newshape[3])
+        raise ValueError("Collapse: unknown shape {newshape}")
+
+    def __repr__(self):
+        return "Collapse({}, {})".format(self.start, self.end)
+
+
 class Viewer(nn.Module):
     """Module equivalent of x.view(*args)"""
 
-    def __init__(self, *args):
+    def __init__(
+        self,
+        d0: int,
+        d1: int = -1,
+        d2: int = -1,
+        d3: int = -1,
+        d4: int = -1,
+        d5: int = -1,
+    ):
         super().__init__()
-        self.shape = args
+        self.shape = trim_rest([d0, d1, d2, d3, d4, d5])
 
     def forward(self, x):
-        return x.view(*self.shape)
+        return x.view(self.shape)
 
     def __repr__(self):
         return "Viewer({})".format(", ".join([repr(x) for x in self.shape]))
@@ -368,12 +452,30 @@ class Viewer(nn.Module):
 class LSTM(nn.Module):
     """LSTM wrapper that discards the state."""
 
-    def __init__(self, *args, **kw):
+    def __init__(
+        self,
+        input_size,
+        hidden_size,
+        num_layers=1,
+        bias=True,
+        batch_firts=True,
+        dropout=0,
+        bidirectional=False,
+        proj_size=0,
+    ):
         super().__init__()
-        self.lstm = nn.LSTM(*args, **kw)
+        self.lstm = nn.LSTM(
+            input_size,
+            hidden_size,
+            num_layers,
+            bias=bias,
+            batch_first=batch_firts,
+            dropout=dropout,
+            bidirectional=bidirectional,
+        )
 
-    def forward(self, *args, **kw):
-        return self.lstm(*args, **kw)[0]
+    def forward(self, x):
+        return self.lstm(x)[0]
 
 
 class BDL_LSTM(nn.Module):
@@ -385,11 +487,11 @@ class BDL_LSTM(nn.Module):
 
     def __init__(
         self,
-        ninput=None,
-        noutput=None,
-        num_layers=1,
-        bidirectional=False,
-        batch_first=True,
+        ninput: int = None,
+        noutput: int = None,
+        num_layers: int = 1,
+        bidirectional: bool = False,
+        batch_first: bool = True,
     ):
         super().__init__()
         assert ninput is not None
@@ -398,7 +500,9 @@ class BDL_LSTM(nn.Module):
             ninput, noutput, num_layers=num_layers, bidirectional=bidirectional
         )
 
-    def forward(self, seq, volatile=False, verbose=False):
+    def forward(
+        self, seq: Tensor, volatile: bool = False, verbose: bool = False
+    ) -> Tensor:
         seq = reorder(seq, "BDL", "LBD")
         output, _ = self.lstm(seq)
         return reorder(output, "LBD", "BDL")
@@ -411,7 +515,12 @@ class BDHW_LSTM(nn.Module):
     """
 
     def __init__(
-        self, ninput=None, noutput=None, nhidden=None, num_layers=1, bidirectional=True
+        self,
+        ninput: int = None,
+        noutput: int = None,
+        nhidden: int = None,
+        num_layers: int = 1,
+        bidirectional: bool = True,
     ):
         super().__init__()
         nhidden = nhidden or noutput
@@ -423,7 +532,7 @@ class BDHW_LSTM(nn.Module):
             nhidden * ndir, noutput, num_layers=num_layers, bidirectional=bidirectional
         )
 
-    def forward(self, img):
+    def forward(self, img: Tensor) -> Tensor:
         b, d, h, w = img.shape
         hin = reorder(img, "BDHW", "WHBD").view(w, h * b, d)
         hout, _ = self.hlstm(hin)
@@ -441,7 +550,7 @@ class BDHW_LSTM_to_BDH(nn.Module):
         assert noutput is not None
         self.lstm = nn.LSTM(ninput, noutput, 1, bidirectional=False)
 
-    def forward(self, img, volatile=False):
+    def forward(self, img, volatile: bool = False):
         noutput = self.lstm.hidden_size
         b, d, h, w = img.size()
         seq = reorder(img, "BDHW", "WBHD").view(w, b * h, d)
@@ -460,41 +569,32 @@ class NoopSub(nn.Module):
         super().__init__()
         self.sub = sub
 
-    def forward(self, x):
+    def forward(self, x: Tensor) -> Tensor:
         return self.sub(x)
 
 
 class KeepSize(nn.Module):
     """Run layers, then upsample back to the original."""
 
-    def __init__(self, mode="bilinear", sub=None, dims=None):
+    dims: List[int]
+
+    def __init__(self, mode: str = "bilinear", sub=None, dims: List[int] = []):
         super().__init__()
-        if isinstance(sub, list):
-            sub = nn.Sequential(*sub)
         self.sub = sub
         self.mode = mode
         self.dims = dims
 
     def forward(self, x):
         y = self.sub(x)
-        if self.dims is None:
+        if len(self.dims) == 0:
             size = x.size()[2:]
         else:
             size = [x.size(i) for i in self.dims]
-        kw = dict(align_corners=False) if self.mode != "nearest" else {}
-        try:
-            return F.interpolate(y, size=size, mode=self.mode, **kw)
-        except Exception as exn:
-            print(
-                "error:",
-                x.size(),
-                y.size(),
-                self.dims,
-                size,
-                self.mode,
-                file=sys.stderr,
-            )
-            raise exn
+        # kw = dict(align_corners=False) if self.mode != "nearest" else {}
+        if self.mode != "nearest":
+            return F.interpolate(y, size=size, mode=self.mode, align_corners=False)
+        else:
+            return F.interpolate(y, size=size, mode=self.mode)
 
 
 class Additive(nn.Module):
@@ -604,12 +704,6 @@ class ModPadded(nn.Module):
         super().__init__()
         self.mod = mod
         self.sub = sub
-
-    def __str__(self):
-        return f"ModPad({self.mod})"
-
-    def __repr__(self):
-        return f"ModPad({self.mod})"
 
     def forward(self, a):
         mod = self.mod
