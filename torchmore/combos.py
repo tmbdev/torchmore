@@ -106,6 +106,8 @@ class UnetLayer(nn.Module):
 
 
 def make_unet(sizes, sub=None, dropout=[0.0] * 100):
+    if isinstance(dropout, float):
+        dropout = [dropout] * len(sizes)
     if len(sizes) == 1:
         if sub is None:
             return nn.Sequential(*conv2d_block(sizes[0]))
