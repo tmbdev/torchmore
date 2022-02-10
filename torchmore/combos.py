@@ -75,7 +75,7 @@ def resnet_blocks(n, d, r=3):
 # Unet Architecture
 
 
-class UnetLayer(nn.Module):
+class UnetLayer0(nn.Module):
     """Resolution pyramid layer using convolutions and upscaling.
     """
 
@@ -105,13 +105,55 @@ class UnetLayer(nn.Module):
         return result
 
 
-def make_unet(sizes, sub=None, dropout=[0.0] * 100):
+class UnetLayer(nn.Module):
+    """Resolution pyramid layer using convolutions and upscaling.
+    """
+
+    def __init__(self, d, sub=None, post=None, dropout=0.0, leaky=0.0, instancenorm=False):
+        super().__init__()
+
+        def mkblock(**kw): 
+            norm = [flex.InstanceNorm2d()] if instancenorm else []
+            kw.setdefault("padding", 1)
+            return nn.Sequential(
+                flex.Conv2d(d, 3, **kw),
+                *norm,
+                nn.ReLU() if leaky == 0.0 else nn.LeakyReLU(leaky),
+            )
+
+        self.block = mkblock()
+        self.down = nn.MaxPool2d(2)
+        norm = [flex.InstanceNorm2d()] if instancenorm else []
+        self.up = nn.Sequential(
+            flex.ConvTranspose2d(d, 3, stride=2, padding=1, output_padding=1),
+            *norm,
+            nn.ReLU() if leaky == 0.0 else nn.LeakyReLU(leaky),
+        )
+        self.sub = mkblock() if sub is None else sub
+        self.dropout = None if dropout <= 0.0 else nn.Dropout(dropout)
+        self.post = post
+
+    def forward(self, x):
+        b, d, h, w = x.size()
+        assert h % 2 == 0 and w % 2 == 0, x.size()
+        x_conv = self.block(x)
+        lo = self.down(x_conv)
+        lo_conv = self.sub(lo)
+        hi = self.up(lo_conv)
+        result = torch.cat([x_conv, hi], dim=1)
+        if self.dropout:
+            result = self.dropout(result)
+        if self.post is not None:
+            result = self.post(result)
+        return result
+
+
+def make_unet(sizes, dropout=[0.0] * 100, **kw):
     if isinstance(dropout, float):
         dropout = [dropout] * len(sizes)
     if len(sizes) == 1:
-        if sub is None:
-            return nn.Sequential(*conv2d_block(sizes[0]))
-        else:
-            return UnetLayer(sizes[0], sub=sub)
+        return UnetLayer(sizes[0], **kw)
     else:
-        return UnetLayer(sizes[0], sub=make_unet(sizes[1:], sub=sub, dropout=dropout[1:]), dropout=dropout[0])
+        sub = make_unet(sizes[1:], dropout=dropout[1:], **kw)
+        kw = dict(kw).update(dropout=dropout[0])
+        return UnetLayer(sizes[0], sub=sub, dropout=dropout[0])
