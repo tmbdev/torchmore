@@ -645,7 +645,6 @@ class Shortcut(nn.Module):
 
     def forward(self, x):
         y = self.block(x)
-        print("***", x.shape, y.shape)
         return torch.cat([x, y], dim=self.dim)
 
 
