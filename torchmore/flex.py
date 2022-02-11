@@ -155,6 +155,30 @@ def BatchNorm3d(*args, **kw):
     return Flex(creator)
 
 
+def InstanceNorm1d(*args, **kw):
+    def creator(x):
+        assert x.ndimension() == 3
+        return nn.InstanceNorm1d(x.size(1), *args, **kw)
+
+    return Flex(creator)
+
+
+def InstanceNorm2d(*args, **kw):
+    def creator(x):
+        assert x.ndimension() == 4
+        return nn.InstanceNorm2d(x.size(1), *args, **kw)
+
+    return Flex(creator)
+
+
+def InstanceNorm3d(*args, **kw):
+    def creator(x):
+        assert x.ndimension() == 5
+        return nn.InstanceNorm3d(x.size(1), *args, **kw)
+
+    return Flex(creator)
+
+
 def replace_modules(model, f):
     for key in list(model._modules.keys()):
         sub = model._modules[key]
