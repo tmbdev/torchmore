@@ -87,7 +87,7 @@ def maybexp(arg):
     elif arg is None:
         return []
     else:
-        raise ValueError(f"{arg}: must be None, a list, or nn.Sequential")
+        return [arg]
 
 
 def opt(condition, *args):
@@ -110,12 +110,13 @@ def ifelse(condition, model1, model2):
 # Unet Architecture
 
 
-def UnetLayer0(d, sub=None, post=None, dropout=0.0, leaky=0.0, instancenorm=False, relu=nn.ReLU()):
+def UnetLayer0(d, sub=None, post=None, dropout=0.0, leaky=0.0, instancenorm=False, relu=None):
     result = nn.Sequential(
         flex.Conv2d(d, 3, padding=1),
         *maybe(relu),
         layers.Shortcut(
             nn.MaxPool2d(2),
+            *opt(dropout > 0, nn.Dropout2d(dropout)),
             *maybexp(sub),
             flex.ConvTranspose2d(d, 3, stride=2, padding=1, output_padding=1)
         ),
@@ -159,12 +160,12 @@ def UnetLayer2(d, sub=None, post=None, dropout=0.0, leaky=0.2, instancenorm=True
     return result
 
 
-def make_unet(sizes, dropout=[0.0] * 100, mode=0, sub=None):
+def make_unet(sizes, dropout=[0.0] * 100, mode=0, sub=None, **kw):
     if isinstance(dropout, float):
         dropout = [dropout] * len(sizes)
     make_layer = globals()[f"UnetLayer{mode}"]
     if len(sizes) == 1:
-        return make_layer(sizes[0], sub=sub)
+        return make_layer(sizes[0], sub=sub, **kw)
     else:
-        subtree = make_unet(sizes[1:], dropout=dropout[1:], sub=sub)
-        return make_layer(sizes[0], sub=subtree, dropout=dropout[0])
+        subtree = make_unet(sizes[1:], dropout=dropout[1:], sub=sub, **kw)
+        return make_layer(sizes[0], sub=subtree, dropout=dropout[0], **kw)
