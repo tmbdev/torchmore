@@ -11,10 +11,12 @@ from torchmore import flex
 
 
 def test_UnetLayer():
-    mod = combos.UnetLayer(33, sub=nn.Identity(), post=nn.Conv2d(2 * 33, 7, 3, padding=1), dropout=0.5)
+    mod = combos.UnetLayer(33, dropout=0.5)
+    flex.shape_inference(mod, (17, 11, 64, 64))
+    print(mod)
     a = torch.ones((17, 11, 64, 64))
     b = mod(a)
-    assert tuple(b.size()) == (17, 7, 64, 64)
+    assert tuple(b.size()) == (17, 66, 64, 64)
 
 
 def test_make_unet():

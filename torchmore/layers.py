@@ -635,6 +635,20 @@ class Parallel(nn.Module):
         return torch.cat(results, dim=self.dim)
 
 
+class Shortcut(nn.Module):
+    """Run modules in parallel and concatenate the results."""
+
+    def __init__(self, *args, dim=1):
+        super().__init__()
+        self.block = nn.Sequential(*args)
+        self.dim = dim
+
+    def forward(self, x):
+        y = self.block(x)
+        print("***", x.shape, y.shape)
+        return torch.cat([x, y], dim=self.dim)
+
+
 class SimplePooling2d(nn.Module):
     """Perform max pooling/unpooling"""
 

@@ -105,7 +105,7 @@ class UnetLayer0(nn.Module):
         return result
 
 
-class UnetLayer(nn.Module):
+class UnetLayer1(nn.Module):
     """Resolution pyramid layer using convolutions and upscaling.
     """
 
@@ -146,6 +146,28 @@ class UnetLayer(nn.Module):
         if self.post is not None:
             result = self.post(result)
         return result
+
+
+def UnetLayer(d, sub=None, post=None, dropout=0.0, leaky=0.0, instancenorm=False):
+    if sub is None:
+        sub = flex.Conv2d(d, 3, padding=1)
+    mods = [flex.Conv2d(d, 3, padding=1)]
+    mods += [flex.InstanceNorm2d()] if instancenorm else []
+    mods += [nn.ReLU()] if leaky == 0.0 else [nn.LeakyReLU(leaky)]
+    submods = [
+        nn.MaxPool2d(2),
+        sub,
+        flex.ConvTranspose2d(d, 3, stride=2, padding=1, output_padding=1),
+    ]
+    submods += [flex.InstanceNorm2d()] if instancenorm else []
+    sub = layers.Shortcut(*submods)
+    # print("sub:\n", sub)
+    mods += [sub]
+    mods += [] if dropout <= 0.0 else [nn.Dropout(dropout)]
+    mods += [post] if post is not None else []
+    result = nn.Sequential(*mods)
+    # print("result:\n", result)
+    return result
 
 
 def make_unet(sizes, dropout=[0.0] * 100, **kw):
