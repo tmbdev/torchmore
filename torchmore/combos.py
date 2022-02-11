@@ -87,7 +87,7 @@ def maybexp(arg):
     elif arg is None:
         return []
     else:
-        raise ValueError(f"{arg}: must be None, a list, or nn.Sequential")
+        return [arg]
 
 
 def opt(condition, *args):
