@@ -124,7 +124,24 @@ def UnetLayer0(d, sub=None, post=None, dropout=0.0, leaky=0.0, instancenorm=Fals
     return result
 
 
-def UnetLayer1(d, sub=None, post=None, dropout=0.0, leaky=0.0, instancenorm=False):
+def UnetLayer1(d, sub=None, post=None, dropout=0.0, leaky=0.2, instancenorm=True):
+    result = nn.Sequential(
+        layers.Shortcut(
+            flex.Conv2d(d, kernel_size=4, stride=2, padding=1, bias=nn.InstanceNorm2d),
+            flex.InstanceNorm2d(),
+            ifelse(leaky == 0.0, nn.ReLU(), nn.LeakyReLU(leaky)),
+            *maybexp(sub),
+            flex.ConvTranspose2d(d, kernel_size=4, stride=2, padding=1, bias=nn.InstanceNorm2d),
+            *opt(instancenorm, flex.InstanceNorm2d()),
+            nn.ReLU(),
+            *opt(dropout > 0.0, nn.Dropout(dropout)),
+        ),
+        *maybexp(post),
+    )
+    return result
+
+
+def UnetLayer2(d, sub=None, post=None, dropout=0.0, leaky=0.2, instancenorm=True):
     result = nn.Sequential(
         flex.Conv2d(d, 3, padding=1),
         *opt(instancenorm, flex.InstanceNorm2d()),
@@ -134,6 +151,7 @@ def UnetLayer1(d, sub=None, post=None, dropout=0.0, leaky=0.0, instancenorm=Fals
             *maybexp(sub),
             flex.ConvTranspose2d(d, 3, stride=2, padding=1, output_padding=1),
             *opt(instancenorm, flex.InstanceNorm2d()),
+            nn.ReLU(),
         ),
         *opt(dropout > 0.0, nn.Dropout(dropout)),
         *maybexp(post),
