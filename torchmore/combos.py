@@ -79,6 +79,17 @@ def maybe(arg):
     return [arg] if arg is not None else []
 
 
+def maybexp(arg):
+    if isinstance(arg, nn.Sequential):
+        return list(arg)
+    elif isinstance(arg, (list, tuple)):
+        return list(arg)
+    elif arg is None:
+        return []
+    else:
+        raise ValueError(f"{arg}: must be None, a list, or nn.Sequential")
+
+
 def opt(condition, *args):
     if not condition:
         return []
@@ -105,10 +116,10 @@ def UnetLayer0(d, sub=None, post=None, dropout=0.0, leaky=0.0, instancenorm=Fals
         *maybe(relu),
         layers.Shortcut(
             nn.MaxPool2d(2),
-            *maybe(sub),
+            *maybexp(sub),
             flex.ConvTranspose2d(d, 3, stride=2, padding=1, output_padding=1)
         ),
-        *maybe(post),
+        *maybexp(post),
     )
     return result
 
@@ -120,12 +131,12 @@ def UnetLayer1(d, sub=None, post=None, dropout=0.0, leaky=0.0, instancenorm=Fals
         ifelse(leaky == 0.0, nn.ReLU(), nn.LeakyReLU(leaky)),
         layers.Shortcut(
             nn.MaxPool2d(2),
-            *maybe(sub),
+            *maybexp(sub),
             flex.ConvTranspose2d(d, 3, stride=2, padding=1, output_padding=1),
             *opt(instancenorm, flex.InstanceNorm2d()),
         ),
         *opt(dropout > 0.0, nn.Dropout(dropout)),
-        *maybe(post),
+        *maybexp(post),
     )
     return result
 
