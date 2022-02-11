@@ -107,54 +107,53 @@ def ifelse(condition, model1, model2):
         return model2
 
 
+def mayberelu(leaky):
+    if leaky is None:
+        return []
+    elif leaky == 0.0:
+        return [nn.ReLU()]
+    else:
+        return [nn.LeakyReLU(leaky)]
+
+def maybedropout(d):
+    if d <= 0.0:
+        return []
+    return [nn.Dropout(d)]
+
+
 # Unet Architecture
 
 
 def UnetLayer0(d, sub=None, post=None, dropout=0.0, leaky=0.0, instancenorm=False, relu=None):
     result = nn.Sequential(
         flex.Conv2d(d, 3, padding=1),
-        *maybe(relu),
+        *opt(instancenorm, flex.InstanceNorm2d()),
+        *mayberelu(relu),
         layers.Shortcut(
             nn.MaxPool2d(2),
             *opt(dropout > 0, nn.Dropout2d(dropout)),
             *maybexp(sub),
             flex.ConvTranspose2d(d, 3, stride=2, padding=1, output_padding=1)
         ),
+        *maybedropout(dropout),
         *maybexp(post),
     )
     return result
 
 
-def UnetLayer1(d, sub=None, post=None, dropout=0.0, leaky=0.2, instancenorm=True):
+def UnetLayer1(d, sub=None, post=None, dropout=0.0, relu=0.2, instancenorm=True, instancenorm2=True, relu2=None):
+    # Only instancenorm2 and relu2 are optional in the original
     result = nn.Sequential(
         layers.Shortcut(
             flex.Conv2d(d, kernel_size=4, stride=2, padding=1, bias=nn.InstanceNorm2d),
-            flex.InstanceNorm2d(),
-            ifelse(leaky == 0.0, nn.ReLU(), nn.LeakyReLU(leaky)),
+            *opt(instancenorm, flex.InstanceNorm2d()),
+            *mayberelu(relu),
             *maybexp(sub),
             flex.ConvTranspose2d(d, kernel_size=4, stride=2, padding=1, bias=nn.InstanceNorm2d),
-            *opt(instancenorm, flex.InstanceNorm2d()),
-            nn.ReLU(),
-            *opt(dropout > 0.0, nn.Dropout(dropout)),
+            *opt(instancenorm2, flex.InstanceNorm2d()),
+            *mayberelu(relu2),
+            *maybedropout(dropout),
         ),
-        *maybexp(post),
-    )
-    return result
-
-
-def UnetLayer2(d, sub=None, post=None, dropout=0.0, leaky=0.2, instancenorm=True):
-    result = nn.Sequential(
-        flex.Conv2d(d, 3, padding=1),
-        *opt(instancenorm, flex.InstanceNorm2d()),
-        ifelse(leaky == 0.0, nn.ReLU(), nn.LeakyReLU(leaky)),
-        layers.Shortcut(
-            nn.MaxPool2d(2),
-            *maybexp(sub),
-            flex.ConvTranspose2d(d, 3, stride=2, padding=1, output_padding=1),
-            *opt(instancenorm, flex.InstanceNorm2d()),
-            nn.ReLU(),
-        ),
-        *opt(dropout > 0.0, nn.Dropout(dropout)),
         *maybexp(post),
     )
     return result
