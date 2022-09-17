@@ -181,6 +181,16 @@ def test_Parallel():
     # torch.jit.script(mod)
 
 
+def test_Shortcut():
+    mod = layers.Shortcut(
+        nn.Conv2d(3, 4, 3, padding=(1, 1)),
+    )
+    a = torch.ones((17, 3, 64, 64))
+    b = mod(a)
+    assert tuple(b.size()) == (17, 7, 64, 64)
+    # torch.jit.script(mod)
+
+
 def test_SimplePooling2d():
     mod = layers.SimplePooling2d([nn.Conv2d(1, 1, 3, padding=(1, 1))])
     a = torch.ones((17, 1, 64, 64))

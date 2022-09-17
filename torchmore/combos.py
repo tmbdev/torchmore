@@ -68,45 +68,103 @@ def ResnetBlock(d, r=3, identity=None, post=None):
     )
 
 
+# helpers for constructing networks
+
+
 def resnet_blocks(n, d, r=3):
     return [ResnetBlock(d, r) for _ in range(n)]
+
+
+def maybe(arg):
+    return [arg] if arg is not None else []
+
+
+def maybexp(arg):
+    if isinstance(arg, nn.Sequential):
+        return list(arg)
+    elif isinstance(arg, (list, tuple)):
+        return list(arg)
+    elif arg is None:
+        return []
+    else:
+        return [arg]
+
+
+def opt(condition, *args):
+    if not condition:
+        return []
+    return list(args)
+
+
+def ifelse(condition, model1, model2):
+    if condition:
+        if isinstance(model1, list):
+            model1 = nn.Sequential(*model1)
+        return model1
+    else:
+        if isinstance(model2, list):
+            model2 = nn.Sequential(*model2)
+        return model2
+
+
+def mayberelu(leaky):
+    if leaky is None:
+        return []
+    elif leaky == 0.0:
+        return [nn.ReLU()]
+    else:
+        return [nn.LeakyReLU(leaky)]
+
+def maybedropout(d):
+    if d <= 0.0:
+        return []
+    return [nn.Dropout(d)]
 
 
 # Unet Architecture
 
 
-class UnetLayer(nn.Module):
-    """Resolution pyramid layer using convolutions and upscaling.
-    """
-
-    def __init__(self, d, sub=None, post=None):
-        super().__init__()
-        self.conv = flex.Conv2d(d, 3, padding=1)
-        self.down = nn.MaxPool2d(2)
-        self.up = flex.ConvTranspose2d(d, 3, stride=2, padding=1, output_padding=1)
-        if isinstance(sub, list):
-            sub = nn.Sequential(*sub)
-        self.sub = sub
-        self.post = post
-
-    def forward(self, x):
-        b, d, h, w = x.size()
-        assert h % 2 == 0 and w % 2 == 0, x.size()
-        xc = self.conv(x)
-        lo = self.down(xc)
-        lo1 = self.sub(lo)
-        hi = self.up(lo1)
-        result = torch.cat([xc, hi], dim=1)
-        if self.post is not None:
-            result = self.post(result)
-        return result
+def UnetLayer0(d, sub=None, post=None, dropout=0.0, leaky=0.0, instancenorm=False, relu=None):
+    result = nn.Sequential(
+        flex.Conv2d(d, 3, padding=1),
+        *opt(instancenorm, flex.InstanceNorm2d()),
+        *mayberelu(relu),
+        layers.Shortcut(
+            nn.MaxPool2d(2),
+            *opt(dropout > 0, nn.Dropout2d(dropout)),
+            *maybexp(sub),
+            flex.ConvTranspose2d(d, 3, stride=2, padding=1, output_padding=1)
+        ),
+        *maybedropout(dropout),
+        *maybexp(post),
+    )
+    return result
 
 
-def make_unet(sizes, sub=None):
+def UnetLayer1(d, sub=None, post=None, dropout=0.0, relu=0.2, instancenorm=True, instancenorm2=True, relu2=None):
+    # Only instancenorm2 and relu2 are optional in the original
+    result = nn.Sequential(
+        layers.Shortcut(
+            flex.Conv2d(d, kernel_size=4, stride=2, padding=1, bias=nn.InstanceNorm2d),
+            *opt(instancenorm, flex.InstanceNorm2d()),
+            *mayberelu(relu),
+            *maybexp(sub),
+            flex.ConvTranspose2d(d, kernel_size=4, stride=2, padding=1, bias=nn.InstanceNorm2d),
+            *opt(instancenorm2, flex.InstanceNorm2d()),
+            *mayberelu(relu2),
+            *maybedropout(dropout),
+        ),
+        *maybexp(post),
+    )
+    return result
+
+
+def make_unet(sizes, dropout=[0.0] * 100, mode=0, sub=None, **kw):
+    if isinstance(dropout, float):
+        dropout = [dropout] * len(sizes)
+    make_layer = globals()[f"UnetLayer{mode}"]
     if len(sizes) == 1:
-        if sub is None:
-            return nn.Sequential(*conv2d_block(sizes[0]))
-        else:
-            return UnetLayer(sizes[0], sub=sub)
+        return make_layer(sizes[0], sub=sub, **kw)
     else:
-        return UnetLayer(sizes[0], sub=make_unet(sizes[1:], sub=sub))
+        subtree = make_unet(sizes[1:], dropout=dropout[1:], sub=sub, **kw)
+        return make_layer(sizes[0], sub=subtree, dropout=dropout[0], **kw)

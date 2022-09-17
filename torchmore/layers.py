@@ -15,9 +15,7 @@ from typing import Callable, Tuple, List, Type
 from .utils import *
 
 
-def conform_tensors1(
-    a: Tensor, args: List[Tensor], slop: int = 9999, dims: List[int] = []
-):
+def conform_tensors1(a: Tensor, args: List[Tensor], slop: int = 9999, dims: List[int] = []):
     """Trim the remaining args down to the size of the first."""
     if len(dims) == 0:
         dims = np.arange(a.ndimension())
@@ -171,15 +169,11 @@ class CheckSizes(nn.Module):
             actual = x.shape[i]
             if lo >= 0 and actual < lo:
                 raise Exception(
-                    "{} ({}): index {} too low ({} not >= {})".format(
-                        self.name, self.order, i, actual, lo
-                    )
+                    "{} ({}): index {} too low ({} not >= {})".format(self.name, self.order, i, actual, lo)
                 )
             if hi >= 0 and actual > hi:
                 raise Exception(
-                    "{} ({}): index {} too high ({} not <= {})".format(
-                        self.name, self.order, i, actual, hi
-                    )
+                    "{} ({}): index {} too high ({} not <= {})".format(self.name, self.order, i, actual, hi)
                 )
         return x
 
@@ -215,9 +209,7 @@ class CheckRange(nn.Module):
         return x
 
     def __repr__(self):
-        return 'CheckRange({}, {}, name="{}")'.format(
-            self.valid[0], self.valid[1], self.name
-        )
+        return 'CheckRange({}, {}, name="{}")'.format(self.valid[0], self.valid[1], self.name)
 
 
 @deprecated
@@ -261,16 +253,12 @@ class Input(nn.Module):
             hi = x.max().item()
             assert lo >= self.range[0] and hi <= self.range[1], (lo, hi, self.range)
         if self.sizes is not None:
-            assert (
-                len(self.sizes) == x.ndim
-            ), f"Input expects tensor of rank {len(self.sizes)} got {x.ndim}"
+            assert len(self.sizes) == x.ndim, f"Input expects tensor of rank {len(self.sizes)} got {x.ndim}"
             for i, size in enumerate(self.sizes):
                 if size is None:
                     continue
                 elif isinstance(size, int):
-                    assert (
-                        x.size(i) == size
-                    ), f"Input dim {i}: expected {size}, got {x.size(i)} ({x.shape})"
+                    assert x.size(i) == size, f"Input dim {i}: expected {size}, got {x.size(i)} ({x.shape})"
                 elif isinstance(size, (list, tuple)):
                     lo, hi = size
                     assert (
@@ -286,10 +274,7 @@ class Input(nn.Module):
 
     def __repr__(self):
         autodev = self.param.device if self.device else None
-        return (
-            f"Input({self.assume} "
-            + f"{self.dtype} {self.range} {autodev} {self.sizes})"
-        )
+        return f"Input({self.assume} " + f"{self.dtype} {self.range} {autodev} {self.sizes})"
 
 
 class Reorder(nn.Module):
@@ -383,9 +368,7 @@ class Reshape(nn.Module):
                     total *= int(x.size(j))
                 newshape.append(total)
             else:
-                raise ValueError(
-                    "shape spec must be either int or tuple, got {}".format(s)
-                )
+                raise ValueError("shape spec must be either int or tuple, got {}".format(s))
         return x.view(*newshape)
 
     def __repr__(self):
@@ -496,13 +479,9 @@ class BDL_LSTM(nn.Module):
         super().__init__()
         assert ninput is not None
         assert noutput is not None
-        self.lstm = nn.LSTM(
-            ninput, noutput, num_layers=num_layers, bidirectional=bidirectional
-        )
+        self.lstm = nn.LSTM(ninput, noutput, num_layers=num_layers, bidirectional=bidirectional)
 
-    def forward(
-        self, seq: Tensor, volatile: bool = False, verbose: bool = False
-    ) -> Tensor:
+    def forward(self, seq: Tensor, volatile: bool = False, verbose: bool = False) -> Tensor:
         seq = reorder(seq, "BDL", "LBD")
         output, _ = self.lstm(seq)
         return reorder(output, "LBD", "BDL")
@@ -525,12 +504,8 @@ class BDHW_LSTM(nn.Module):
         super().__init__()
         nhidden = nhidden or noutput
         ndir = bidirectional + 1
-        self.hlstm = nn.LSTM(
-            ninput, nhidden, num_layers=num_layers, bidirectional=bidirectional
-        )
-        self.vlstm = nn.LSTM(
-            nhidden * ndir, noutput, num_layers=num_layers, bidirectional=bidirectional
-        )
+        self.hlstm = nn.LSTM(ninput, nhidden, num_layers=num_layers, bidirectional=bidirectional)
+        self.vlstm = nn.LSTM(nhidden * ndir, noutput, num_layers=num_layers, bidirectional=bidirectional)
 
     def forward(self, img: Tensor) -> Tensor:
         b, d, h, w = img.shape
@@ -633,6 +608,21 @@ class Parallel(nn.Module):
     def forward(self, x):
         results = [f(x) for f in self.args]
         return torch.cat(results, dim=self.dim)
+
+
+class Shortcut(nn.Module):
+    """Run modules in parallel and concatenate the results."""
+
+    def __init__(self, *args, dim=1):
+        super().__init__()
+        self.block = nn.Sequential(*args)
+        self.dim = dim
+
+    def forward(self, x):
+        y = self.block(x)
+        assert x.shape[: self.dim] == y.shape[: self.dim], (x.shape, y.shape)
+        assert x.shape[self.dim + 1 :] == y.shape[self.dim + 1 :], (x.shape, y.shape)
+        return torch.cat([x, y], dim=self.dim)
 
 
 class SimplePooling2d(nn.Module):
