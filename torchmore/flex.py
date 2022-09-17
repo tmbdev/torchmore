@@ -124,18 +124,14 @@ Lstm2d = BDHW_LSTM
 
 def BatchNorm(*args, **kw):
     def creator(x):
-        if x.ndimension() == 2:
-            return nn.BatchNorm1d(x.size(1), *args, **kw)
-        elif x.ndimension() == 3:
+        if x.ndimension() in [2, 3]:
             return nn.BatchNorm1d(x.size(1), *args, **kw)
         elif x.ndimension() == 4:
-            return BatchNorm2d(*args, **kw)
+            return nn.BatchNorm2d(x.size(1), *args, **kw)
         elif x.ndimension() == 5:
-            return BatchNorm3d(*args, **kw)
+            return nn.BatchNorm3d(x.size(1), *args, **kw)
         else:
             raise ValueError("unsupported dimension")
-        assert x.size(0) > 1, f"batch norm requires batch size > 1, got {x.shape}"
-        return nn.BatchNorm1d(x.size(1), *args, **kw)
 
     return Flex(creator)
 
