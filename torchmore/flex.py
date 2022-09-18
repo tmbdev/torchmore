@@ -122,6 +122,18 @@ Lstm2 = BDHW_LSTM
 Lstm2d = BDHW_LSTM
 
 
+def LSTMn(*args, **kw):
+    def creator(x):
+        if x.ndimension() == 3:
+            return layers.BDL_LSTM(x.size(1), *args, **kw)
+        elif x.ndimension() == 4:
+            return layers.BDHW_LSTM(x.size(1), *args, **kw)
+        else:
+            raise ValueError(f"{x.shape}: multidimensional LSTM not implemented for this rank array")
+
+    return Flex(creator)
+
+
 def BatchNorm(*args, **kw):
     def creator(x):
         if x.ndimension() in [2, 3]:
