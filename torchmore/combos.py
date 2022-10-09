@@ -172,6 +172,7 @@ def UnetLayer2(d, sub=None, pre=2, post=2, dropout=0.0, leaky=0.0):
             nn.MaxPool2d(2),
             *maybexp(sub),
             flex.ConvTranspose2d(d, 3, stride=2, padding=1, output_padding=1),
+            *maybedropout(dropout),
         ),
         *postlayers,
     )
