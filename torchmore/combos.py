@@ -159,11 +159,36 @@ def UnetLayer1(d, sub=None, post=None, dropout=0.0, relu=0.2, instancenorm=True,
     return result
 
 
-def make_unet(sizes, dropout=[0.0] * 100, mode=0, sub=None, **kw):
+def UnetLayer2(d, sub=None, pre=2, post=2, dropout=0.0, leaky=0.0):
+    prelayers = []
+    for i in range(pre):
+        prelayers += [flex.Conv2d(d, kernel_size=3, padding=1), nn.ReLU()]
+    postlayers = []
+    for i in range(post):
+        postlayers += [flex.Conv2d(d, kernel_size=3, padding=1), nn.ReLU()]
+    result = nn.Sequential(
+        *prelayers,
+        layers.Shortcut(
+            nn.MaxPool2d(2),
+            *maybexp(sub),
+            flex.ConvTranspose2d(d, 3, stride=2, padding=1, output_padding=1),
+        ),
+        *postlayers,
+    )
+    return result
+
+def make_unet(sizes, dropout=[0.0] * 100, mode=2, sub=2, **kw):
     if isinstance(dropout, float):
         dropout = [dropout] * len(sizes)
     make_layer = globals()[f"UnetLayer{mode}"]
-    if len(sizes) == 1:
+    if len(sizes) < 2:
+        raise ValueError("Unet must have at least 2 layers")
+    elif len(sizes) == 2:
+        if isinstance(sub, int):
+            sublayers = []
+            for i in range(sub):
+                sublayers += [flex.Conv2d(sizes[1], kernel_size=3, padding=1), nn.ReLU()]
+            sub = sublayers
         return make_layer(sizes[0], sub=sub, **kw)
     else:
         subtree = make_unet(sizes[1:], dropout=dropout[1:], sub=sub, **kw)

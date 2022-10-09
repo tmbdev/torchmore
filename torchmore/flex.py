@@ -14,6 +14,9 @@ from . import layers
 verbose = False
 
 
+def arginfo(l):
+    return tuple([p.shape if isinstance(p, torch.Tensor) else p for p in l])
+
 class Flex(nn.Module):
     def __init__(self, creator):
         super(Flex, self).__init__()
@@ -23,9 +26,11 @@ class Flex(nn.Module):
     def forward(self, *args):
         if self.layer is None:
             self.layer = self.creator(*args)
+            creating = True
             if verbose:
-                print("# created", self.layer)
-        return self.layer.forward(*args)
+                print(f"Flex: {self.creator}{arginfo(args)} -> {self.layer}")
+        result = self.layer.forward(*args)
+        return result
 
     def __repr__(self):
         info = repr(self.layer) if self.layer is not None else repr(self.creator)
