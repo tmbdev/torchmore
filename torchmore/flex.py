@@ -28,10 +28,12 @@ class Flex(nn.Module):
         return self.layer.forward(*args)
 
     def __repr__(self):
-        return "Flex:" + repr(self.layer)
+        info = repr(self.layer) if self.layer is not None else repr(self.creator)
+        return "Flex(%s)" % info
 
     def __str__(self):
-        return "Flex:" + str(self.layer)
+        info = repr(self.layer) if self.layer is not None else repr(self.creator)
+        return "Flex(%s)" % info
 
 
 def Linear(*args, **kw):
